@@ -1,4 +1,3 @@
-
 from flask import Flask, request, jsonify
 from google.cloud import storage
 from datetime import timedelta
@@ -37,4 +36,5 @@ def get_signed_url():
 
 if __name__ == "__main__":
     # Optional: Set GOOGLE_APPLICATION_CREDENTIALS
-    app.run(debug=True)
+    port = os.environ.get("PORT", 8080)
+    app.run(host="0.0.0.0", port=port)

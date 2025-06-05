@@ -1,21 +1,11 @@
-FROM python:3.12-slim
+FROM --platform=linux/amd64 python:3.12-alpine
 
 WORKDIR /app
 
-# COPY requirements.txt requirements.txt
-# RUN pip install -r requirements.txt
-
-RUN pip install Flask
-RUN pip install google-cloud-storage
-RUN pip install flask-cors
+RUN pip install Flask google-cloud-storage flask-cors gunicorn
 
 COPY . .
 
-EXPOSE 8081
+EXPOSE 8080 
 
-ENV FLASK_APP=app.py
-ENV FLASK_RUN_HOST=0.0.0.0
-ENV FLASK_RUN_PORT=8081
-ENV GOOGLE_APPLICATION_CREDENTIALS=accesa-equipo3-6f10afb05ee2.json
-
-CMD ["flask", "run"]
+CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 app:app
