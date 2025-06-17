@@ -1,10 +1,15 @@
 from flask import Flask, request, jsonify
 from google.cloud import storage
+from google.api_core.exceptions import NotFound
 from datetime import timedelta
 from flask_cors import CORS
 import os
 import logging
 import traceback
+from google.cloud import bigquery
+import pandas as pd
+import re
+import io
 
 
 logging.basicConfig(level=logging.INFO)
@@ -55,7 +60,7 @@ def get_signed_url():
             content_type=content_type,
         )
 
-        # logger.info(f"Generated signed url for file: {file_name}")
+        logger.info(f"Generated signed url for file: {file_name}")
         return jsonify({"signed_url": url}), 200
         
     except Exception as e:
@@ -63,6 +68,108 @@ def get_signed_url():
         logger.error(traceback.format_exc())
         return jsonify({"error": "Internal server error"}), 500
 
+
+@app.route("/pubsub-notify-hook", methods=["POST"])
+def pubsub_hook():
+    try:
+        envelope = request.get_json()
+        if not envelope:
+            msg = "No message"
+            logger.error(msg)
+            return msg, 400
+
+        pubsub_message = envelope.get("message")
+        if not pubsub_message:
+            msg = "Invalid Pub/Sub format"
+            logger.error(msg)
+            return msg, 400
+
+        import base64
+        data = base64.b64decode(pubsub_message["data"]).decode("utf-8")
+        logger.info(f"Pub/Sub Message: {data}")
+
+
+        import json
+        event_data = json.loads(data)
+        file_name = event_data["name"]
+        try:
+            logger.info(f"Triggering file process for: {file_name}")
+            process_file(file_name)
+        except Exception as e:
+            logger.error(f"Error processing file {file_name}: {str(e)}")
+
+        return "OK", 200
+    except Exception as e:
+        logger.error(f"hook failed: {e}")
+        logger.error(traceback.format_exc())
+        return "Internal Error", 500
+
+def clean_column_name(name):
+    name = name.strip()
+    name = name.replace(" ", "_")
+    name = re.sub(r"[^\w]", "_", name) 
+    name = re.sub(r"_+", "_", name)   
+    return name.lower()
+
+# Función para procesar los archivos y cargarlos a BigQuery, llamada por Pub/Sub
+def process_file(file_name):
+    try:
+        if not file_name:
+            raise ValueError("Missing file_name in process_file")
+
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(BUCKET_NAME)
+        blob = bucket.blob(file_name)
+        file_ext = file_name.split(".")[-1]
+
+        file_data = blob.download_as_bytes()
+        
+        if file_ext == "csv":
+            df = pd.read_csv(io.BytesIO(file_data))
+        elif file_ext in ["xls", "xlsx"]:
+            df = pd.read_excel(io.BytesIO(file_data))
+        else:
+            raise ValueError(f"error, unsupported file format {file_ext}")
+        logger.info(f"Dataframe shape: {df.shape}")
+        df.columns = [clean_column_name(col) for col in df.columns]
+        logger.info(f"columnas procesadas: {df.columns.tolist()}")
+
+        project_id = "accesa-equipo3"
+        dataset_id = "accesa_dataset"
+        if "roaming" in file_name:
+            table_name = "roaming_data"
+        elif "automatismo" in file_name:
+            table_name = "automatismo_data"
+        elif "congestion" in file_name:
+            table_name = "congestion_data"
+        elif "habilidad" in file_name:
+            table_name = "habilidad_data"
+        else:
+            table_name = "uncategorized_data"
+
+        table_id = f"{project_id}.{dataset_id}.{table_name}"
+
+        bq_client = bigquery.Client(project=project_id)
+
+        try:
+            bq_client.get_dataset(f"{project_id}.{dataset_id}")
+            logger.info(f"Dataset {dataset_id} already exists.")
+        except NotFound:
+            logger.warning(f"Dataset {dataset_id} not found. Creating it...")
+            dataset = bigquery.Dataset(f"{project_id}.{dataset_id}")
+            dataset.location = "southamerica-east1" 
+            dataset = bq_client.create_dataset(dataset)
+            logger.info(f"Created dataset: {dataset.dataset_id}")
+
+        job = bq_client.load_table_from_dataframe(df, table_id)
+        job.result()
+
+        logger.info(f"archivo: {file_name} cargado a: {table_name}"), 200
+
+    except Exception as e:
+        logger.error(f"Error in process_upload: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise
 
 @app.route("/health", methods=["GET"])
 def health_check():

@@ -1,8 +1,10 @@
 FROM --platform=linux/amd64 python:3.13-slim
 
+
 WORKDIR /app
 
-RUN pip install Flask google-cloud-storage flask-cors gunicorn
+RUN pip install Flask google-cloud-storage flask-cors gunicorn pyarrow
+RUN pip install pandas pandas-gbq openpyxl xlrd google-cloud-bigquery python-docx
 
 COPY . .
 
