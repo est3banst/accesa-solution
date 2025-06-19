@@ -9,6 +9,7 @@ import traceback
 from google.cloud import bigquery
 import pandas as pd
 import re
+import unicodedata
 import io
 
 
@@ -105,11 +106,18 @@ def pubsub_hook():
         return "Internal Error", 500
 
 def clean_column_name(name):
-    name = name.strip()
-    name = name.replace(" ", "_")
-    name = re.sub(r"[^\w]", "_", name) 
-    name = re.sub(r"_+", "_", name)   
-    return name.lower()
+    name = unicodedata.normalize('NFKD', name).encode('ASCII', 'ignore').decode('utf-8')
+
+    name = name.strip().lower().replace(" ", "_")
+
+    name = re.sub(r"[^\w]", "_", name)
+
+    name = re.sub(r"_+", "_", name)
+
+    if not re.match(r"^[a-zA-Z_]", name):
+        name = f"col_{name}"
+
+    return name[:128]
 
 # Función para procesar los archivos y cargarlos a BigQuery, llamada por Pub/Sub
 def process_file(file_name):
@@ -144,8 +152,10 @@ def process_file(file_name):
             table_name = "congestion_data"
         elif "habilidad" in file_name:
             table_name = "habilidad_data"
+        elif "611" in file_name:
+            table_name = "611_data"
         else:
-            table_name = "uncategorized_data"
+            table_name = "sin_categorizar"
 
         table_id = f"{project_id}.{dataset_id}.{table_name}"
 
