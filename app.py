@@ -152,6 +152,8 @@ def process_file(file_name):
             table_name = "congestion_data"
         elif "habilidad" in file_name:
             table_name = "habilidad_data"
+        elif "reclamos" in file_name:
+            table_name = "reclamos_data"
         elif "611" in file_name:
             table_name = "611_data"
         else:
