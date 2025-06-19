@@ -144,6 +144,7 @@ def process_file(file_name):
 
         project_id = "accesa-equipo3"
         dataset_id = "accesa_dataset"
+        file_name = file_name.lower()
         if "roaming" in file_name:
             table_name = "roaming_data"
         elif "automatismo" in file_name:
