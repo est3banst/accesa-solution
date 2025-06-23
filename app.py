@@ -9,6 +9,7 @@ from flask_cors import CORS
 import os
 import logging
 import traceback
+import math
 from google.cloud import bigquery
 import pandas as pd
 import re
@@ -31,6 +32,32 @@ CORS(app,
 BUCKET_NAME = "accesa-data-gather"
 
 vertexai.init(project="accesa-equipo3", location="southamerica-east1")
+
+def fetch_monthly_automatismo(table_name):
+    bq = bigquery.Client()
+    query = f"""
+        SELECT 
+        total_correcto
+        total_error FROM `accesa-equipo3.accesa_dataset.{table_name}
+         `
+        ;
+    """
+    return bq.query(query).to_dataframe()
+
+def fetch_monthly_reclamos(table_name):
+    bq = bigquery.Client()
+    query = f"""
+        SELECT 
+        fecha,
+        cantidad_de_reclamos,
+        cantidad_de_reclamos_resueltos,
+        cantidad_de_reclamos_no_resueltos,
+        cantidad_de_reclamos_en_proceso FROM `accesa-equipo3.accesa_dataset.{table_name}
+         `
+        ;
+    """
+    return bq.query(query).to_dataframe()
+
 
 def fetch_monthly_habilidad(table_name):
     bq = bigquery.Client()
@@ -66,6 +93,23 @@ def fetch_monthly_skill(table_name):
     """
     return bq.query(query).to_dataframe()
 
+def fetch_monthly_roaming(table_name):
+    bq = bigquery.Client()
+    query = f"""
+        SELECT 
+        total_de_tiempos_de_interacciones,
+        cantidad_de_interacciones,
+        total_de_tiempos_de_espera,
+        cantidad_de_mensajes_entrantes,
+        cantidad_de_mensajes_salientes,
+        total_de_mensajes,
+        promedio_de_duracion_de_interacciones,
+        promedio_de_mensajes_por_interaccion,
+        FROM `accesa-equipo3.accesa_dataset.{table_name}
+         `
+        ;
+    """
+    return bq.query(query).to_dataframe()
 
 def summarize_dataframe(df, context=""):
     model = TextGenerationModel.from_pretrained("text-bison")
@@ -176,24 +220,78 @@ def pubsub_hook():
         logger.error(traceback.format_exc())
         return "Internal Error", 500
 
+def calc_skill(df):
+    trsac_antel_movil = df["demora_en_atender"][1] if len(df["demora_en_atender"]) > 1 else 0
+    antel_movil_ofrecidas = df["ofrecidas"][1] if len(df["ofrecidas"]) > 1 else 0
+    referentes_movil_ofrecidas = df["ofrecidas"][0] if len(df["ofrecidas"]) > 0 else 0
+    horas_operacion = df["horas_operacion"][1] if len(df["horas_operacion"]) > 1 else 0
+    promedio_tiempo_operacion_segundos = df["tiempo_operacion"][1] if len(df["tiempo_operacion"]) > 1 else 0
+
+    return {
+        "trsac_antel_movil": trsac_antel_movil,
+        "antel_movil_ofrecidas": antel_movil_ofrecidas,
+        "referentes_movil_ofrecidas": referentes_movil_ofrecidas,
+        "horas_operacion": horas_operacion,
+        "promedio_tiempo_operacion_segundos": promedio_tiempo_operacion_segundos,}
+
+def calc_roaming(df):
+    mensajes_entrantes = df["cantidad_de_mensajes_entrantes"]
+    mensajes_salientes = df["cantidad_de_mensajes_salientes"]
+    total_mensajes = mensajes_entrantes + mensajes_salientes
+    promedio_mensajes_por_interaccion = df["promedio_de_mensajes_por_interaccion"]
+
+    return {
+        "mensajes_entrantes": mensajes_entrantes,
+        "mensajes_salientes": mensajes_salientes,
+        "total_mensajes": total_mensajes,
+        "promedio_mensajes_por_interaccion": promedio_mensajes_por_interaccion,
+    }
+
+def calc_automatismo(df):
+    total_correcto = df["total_correcto"].sum()
+    total_error = df["total_error"].sum()
+
+    porcentaje_correcto = ((total_correcto * 100 )/ (total_correcto + total_error)) if (total_correcto + total_error) > 0 else 0
+    porcentaje_error = ((total_error * 100) / (total_correcto + total_error)) if (total_correcto + total_error) > 0 else 0
+    total_automatismos = total_correcto + total_error
+
+    return {
+        "total_correcto": total_correcto,
+        "total_error": total_error,
+        "total_automatismos": total_automatismos,
+        "porcentaje_correcto": round(porcentaje_correcto, 2),
+        "porcentaje_error": round(porcentaje_error, 2),
+    }
+
+
 def calc_habilidad(df):
     total_llamadas = df["ofrecidas"].sum()
     atendidas = df["atendidas"].sum()
     abandonadas = df["abandonadas"].sum()
+    dias_mes = df["fecha"].nunique()
 
     porcentaje_no_atendidas = (abandonadas / total_llamadas) * 100 if total_llamadas else 0
     indice_respuesta = 100 - porcentaje_no_atendidas
+    promedio_llamadas = total_llamadas / dias_mes if dias_mes else 0
 
     return {
         "llamadas_al_servicio": total_llamadas,
         "llamadas_atendidas": atendidas,
         "llamadas_abandonadas": abandonadas,
         "porcentaje_no_atendidas": round(porcentaje_no_atendidas, 2),
-        "indice_respuesta": round(indice_respuesta, 2)
+        "indice_respuesta": round(indice_respuesta, 2),
+        "promedio_llamadas_por_dia": math.trunc(promedio_llamadas),
     }
 
 @app.route("/generate-report", methods=["POST"])
 def generate_report():
+    handler_map = {
+    "roaming_data" : (fetch_monthly_roaming, calc_roaming),
+    "habilidad_data": (fetch_monthly_habilidad, calc_habilidad),
+    "skill_data": (fetch_monthly_skill, calc_skill),
+    "reclamos_data":(fetch_monthly_reclamos, calc_reclamos),
+    "automatismo_data": (fetch_monthly_automatismo, calc_automatismo),
+    }
     try:
         data = request.get_json()
         month = data.get("month")
@@ -202,9 +300,9 @@ def generate_report():
         dataframes = {}
         summaries = {}
 
-        for table in tables:
+        for table, (fetch_fn, calc_fn) in handler_map.items():
             try:
-                df = fetch_monthly_habilidad(table)
+                df = fetch_fn(month)
                 if not df.empty:
                     dataframes[table] = df.head(20)
                     summaries[table] = summarize_dataframe(df, context=table)
@@ -284,6 +382,10 @@ def process_file(file_name):
         elif file_ext in ["xls", "xlsx"]:
             if "roaming" in file_name.lower():
                 df = pd.read_excel(io.BytesIO(file_data), skiprows=6)
+            elif "skill" in file_name.lower():
+                df = pd.read_excel(io.BytesIO(file_data), skiprows=3)
+            elif "automatismo" in file_name.lower():
+                df = pd.read_excel(io.BytesIO(file_data), skiprows=4)
             else:
                 df = pd.read_excel(io.BytesIO(file_data))
         else:
