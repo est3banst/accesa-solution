@@ -32,13 +32,40 @@ BUCKET_NAME = "accesa-data-gather"
 
 vertexai.init(project="accesa-equipo3", location="southamerica-east1")
 
-def fetch_data_in_range(start_date, end_date, table_name):
+def fetch_monthly_habilidad(table_name):
     bq = bigquery.Client()
     query = f"""
-        SELECT * FROM `accesa-equipo3.accesa_dataset.{table_name}`
-        WHERE DATE(column_with_date) BETWEEN '{start_date}' AND '{end_date}'
+        SELECT 
+        ofrecidas,
+        atendidas,
+        abandonadas FROM `accesa-equipo3.accesa_dataset.{table_name}
+         `
+        ;
     """
     return bq.query(query).to_dataframe()
+
+def fetch_monthly_skill(table_name):
+    bq = bigquery.Client()
+    query = f"""
+        SELECT 
+        servicio,
+        ofrecidas,
+        contestadas,
+        abandonadas,
+        diferencia,
+        calidad,
+        indice_de_abandono,
+        indice_de_respuesta,
+        demora_en_atender,
+        espera_maxima,
+        tiempo_operacion,
+        horas_operacion,
+        ambito FROM `accesa-equipo3.accesa_dataset.{table_name}
+         `
+        ;
+    """
+    return bq.query(query).to_dataframe()
+
 
 def summarize_dataframe(df, context=""):
     model = TextGenerationModel.from_pretrained("text-bison")
@@ -149,28 +176,35 @@ def pubsub_hook():
         logger.error(traceback.format_exc())
         return "Internal Error", 500
 
+def calc_habilidad(df):
+    total_llamadas = df["ofrecidas"].sum()
+    atendidas = df["atendidas"].sum()
+    abandonadas = df["abandonadas"].sum()
+
+    porcentaje_no_atendidas = (abandonadas / total_llamadas) * 100 if total_llamadas else 0
+    indice_respuesta = 100 - porcentaje_no_atendidas
+
+    return {
+        "llamadas_al_servicio": total_llamadas,
+        "llamadas_atendidas": atendidas,
+        "llamadas_abandonadas": abandonadas,
+        "porcentaje_no_atendidas": round(porcentaje_no_atendidas, 2),
+        "indice_respuesta": round(indice_respuesta, 2)
+    }
 
 @app.route("/generate-report", methods=["POST"])
 def generate_report():
     try:
         data = request.get_json()
-        start_date = data.get("start_date")
-        end_date = data.get("end_date")
-        if not start_date or not end_date:
-            return jsonify({"error": "no 'start_date' or 'end_date' in request"}), 400
-        start = datetime.strptime(start_date, "%Y-%m-%d")
-        end = datetime.strptime(end_date, "%Y-%m-%d")
-
-        if (end - start).days < 2:
-            return jsonify({"error": "El periodo debe ser mayor o igual a 2 dias"}), 400
-
-        tables = ["roaming_data", "automatismo_data", "congestion_data", "habilidad_data", "reclamos_data", "611_data"]
+        month = data.get("month")
+        
+        tables = ["roaming_data", "automatismo_data", "skill_data", "congestion_data", "habilidad_data", "reclamos_data", "611_data"]
         dataframes = {}
         summaries = {}
 
         for table in tables:
             try:
-                df = fetch_data_in_range(start_date, end_date, table)
+                df = fetch_monthly_habilidad(table)
                 if not df.empty:
                     dataframes[table] = df.head(20)
                     summaries[table] = summarize_dataframe(df, context=table)
@@ -178,13 +212,13 @@ def generate_report():
                 logger.warning(f"Failed to fetch data for {table}: {e}")
 
         if not dataframes:
-            return jsonify({"error": f"No data for period {start_date} - {end_date}"}), 404
+            return jsonify({"error": f"No data for period {month}"}), 404
 
-        report_filename = build_report(start_date, end_date, dataframes, summaries)
+        report_filename = build_report(month, dataframes, summaries)
 
         storage_client = storage.Client()
         bucket = storage_client.bucket(BUCKET_NAME)
-        blob = bucket.blob(f"reports/report_{start_date}-{end_date}.docx")
+        blob = bucket.blob(f"reports/report_{month}.docx")
         blob.upload_from_filename(report_filename)
 
         # Download URL
@@ -248,7 +282,10 @@ def process_file(file_name):
         if file_ext == "csv":
             df = pd.read_csv(io.BytesIO(file_data))
         elif file_ext in ["xls", "xlsx"]:
-            df = pd.read_excel(io.BytesIO(file_data))
+            if "roaming" in file_name.lower():
+                df = pd.read_excel(io.BytesIO(file_data), skiprows=6)
+            else:
+                df = pd.read_excel(io.BytesIO(file_data))
         else:
             raise ValueError(f"error, unsupported file format {file_ext}")
         logger.info(f"Dataframe shape: {df.shape}")
@@ -266,6 +303,8 @@ def process_file(file_name):
             table_name = "congestion_data"
         elif "habilidad" in file_name:
             table_name = "habilidad_data"
+        elif "skill" in file_name:
+            table_name = "skill_data"
         elif "reclamos" in file_name:
             table_name = "reclamos_data"
         elif "611" in file_name:
