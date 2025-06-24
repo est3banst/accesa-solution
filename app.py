@@ -37,8 +37,7 @@ def fetch_monthly_automatismo(table_name):
     bq = bigquery.Client()
     query = f"""
         SELECT 
-        total_correcto
-        total_error FROM `accesa-equipo3.accesa_dataset.{table_name}
+        * FROM `accesa-equipo3.accesa_dataset.{table_name}
          `
         ;
     """
@@ -48,11 +47,7 @@ def fetch_monthly_reclamos(table_name):
     bq = bigquery.Client()
     query = f"""
         SELECT 
-        fecha,
-        cantidad_de_reclamos,
-        cantidad_de_reclamos_resueltos,
-        cantidad_de_reclamos_no_resueltos,
-        cantidad_de_reclamos_en_proceso FROM `accesa-equipo3.accesa_dataset.{table_name}
+        * FROM `accesa-equipo3.accesa_dataset.{table_name}
          `
         ;
     """
@@ -63,9 +58,7 @@ def fetch_monthly_habilidad(table_name):
     bq = bigquery.Client()
     query = f"""
         SELECT 
-        ofrecidas,
-        atendidas,
-        abandonadas FROM `accesa-equipo3.accesa_dataset.{table_name}
+        * FROM `accesa-equipo3.accesa_dataset.{table_name}
          `
         ;
     """
@@ -75,19 +68,7 @@ def fetch_monthly_skill(table_name):
     bq = bigquery.Client()
     query = f"""
         SELECT 
-        servicio,
-        ofrecidas,
-        contestadas,
-        abandonadas,
-        diferencia,
-        calidad,
-        indice_de_abandono,
-        indice_de_respuesta,
-        demora_en_atender,
-        espera_maxima,
-        tiempo_operacion,
-        horas_operacion,
-        ambito FROM `accesa-equipo3.accesa_dataset.{table_name}
+        * FROM `accesa-equipo3.accesa_dataset.{table_name}
          `
         ;
     """
@@ -97,22 +78,14 @@ def fetch_monthly_roaming(table_name):
     bq = bigquery.Client()
     query = f"""
         SELECT 
-        total_de_tiempos_de_interacciones,
-        cantidad_de_interacciones,
-        total_de_tiempos_de_espera,
-        cantidad_de_mensajes_entrantes,
-        cantidad_de_mensajes_salientes,
-        total_de_mensajes,
-        promedio_de_duracion_de_interacciones,
-        promedio_de_mensajes_por_interaccion,
-        FROM `accesa-equipo3.accesa_dataset.{table_name}
+        * FROM `accesa-equipo3.accesa_dataset.{table_name}
          `
         ;
     """
     return bq.query(query).to_dataframe()
 
 def summarize_dataframe(df, context=""):
-    model = TextGenerationModel.from_pretrained("text-bison")
+    model = TextGenerationModel.from_pretrained("text-bison@002")
     prompt = f"""
 Actúa como un analista de datos senior. Resume los siguientes datos ({context}) en español con una narrativa profesional, señalando tendencias, anomalías o valores atípicos.
 
@@ -120,10 +93,23 @@ Actúa como un analista de datos senior. Resume los siguientes datos ({context})
 """
     return model.predict(prompt=prompt, temperature=0.7, max_output_tokens=1024).text
 
+def add_report_header(doc, month):
+    doc.add_heading("Informe Mensual de Gestión", 0)
+    doc.add_paragraph(f"Móvil – {month}", style="Subtitle")
+    doc.add_paragraph(f"Fecha de generación: {datetime.now().strftime('%Y-%m-%d')}")
+    doc.add_paragraph("")
+
+def add_general_summary(doc):
+    doc.add_heading("Resumen General", level=1)
+    doc.add_paragraph(
+        "Este informe presenta los indicadores clave de desempeño (SLA) para el canal móvil en el período evaluado. Se analizan aspectos como llamadas entrantes, abandonos, tiempos de atención, congestión, automatismos y reclamos recibidos."
+    )
+
+
 def build_report(month, dataframes, summaries):
     doc = Document()
-    doc.add_heading(f'Informe Mensual - {month}', 0)
-    doc.add_paragraph(f"Fecha de generación: {datetime.now().strftime('%Y-%m-%d')}")
+    add_report_header(doc, month)
+    add_general_summary(doc)
 
     for section, df in dataframes.items():
         doc.add_heading(section.replace("_", " ").title(), level=1)
@@ -226,12 +212,15 @@ def calc_skill(df):
     referentes_movil_ofrecidas = df["ofrecidas"][0] if len(df["ofrecidas"]) > 0 else 0
     horas_operacion = df["horas_operacion"][1] if len(df["horas_operacion"]) > 1 else 0
     promedio_tiempo_operacion_segundos = df["tiempo_operacion"][1] if len(df["tiempo_operacion"]) > 1 else 0
+    calidad = df["calidad_"][1] if len(df["calidad_"]) > 1 else 0
+    nivel_de_servicio = round(calidad * 100 / 80, 2)
 
     return {
         "trsac_antel_movil": trsac_antel_movil,
         "antel_movil_ofrecidas": antel_movil_ofrecidas,
         "referentes_movil_ofrecidas": referentes_movil_ofrecidas,
         "horas_operacion": horas_operacion,
+        "nivel_de_servicio": nivel_de_servicio,
         "promedio_tiempo_operacion_segundos": promedio_tiempo_operacion_segundos,}
 
 def calc_roaming(df):
@@ -283,6 +272,26 @@ def calc_habilidad(df):
         "promedio_llamadas_por_dia": math.trunc(promedio_llamadas),
     }
 
+def ms_to_hms(ms):
+    seconds = int(ms / 1000)
+    return str(timedelta(seconds=seconds))
+
+def calc_reclamos(df):
+    df["acumulado_o_detallado"] = df["acumulado_o_detallado"].str.lower()
+    df = df[df["acumulado_o_detallado"] == "detallado"]
+
+    total_tiempo_llamadas = df["manejo_total"].sum()
+    total_llamadas = df["manejo"].sum()
+    nombre_de_cola = df["nombre_de_cola"].to_list()
+    nombre_de_codigo_de_conclusion = df["nombre_de_codigo_de_conclusion"].to_list()
+
+    return {
+        "total_tiempo_llamadas": ms_to_hms(total_tiempo_llamadas),
+        "total_llamadas": total_llamadas,
+        "nombre_de_cola": nombre_de_cola,
+        "nombre_de_codigo_de_conclusion": nombre_de_codigo_de_conclusion,
+    }
+
 @app.route("/generate-report", methods=["POST"])
 def generate_report():
     handler_map = {
@@ -295,8 +304,7 @@ def generate_report():
     try:
         data = request.get_json()
         month = data.get("month")
-        
-        tables = ["roaming_data", "automatismo_data", "skill_data", "congestion_data", "habilidad_data", "reclamos_data", "611_data"]
+
         dataframes = {}
         summaries = {}
 
@@ -304,8 +312,9 @@ def generate_report():
             try:
                 df = fetch_fn(month)
                 if not df.empty:
+                    metrics = calc_fn(df)
                     dataframes[table] = df.head(20)
-                    summaries[table] = summarize_dataframe(df, context=table)
+                    summaries[table] = summarize_dataframe(df, context=metrics)
             except Exception as e:
                 logger.warning(f"Failed to fetch data for {table}: {e}")
 
@@ -363,7 +372,6 @@ def clean_column_name(name):
         
     return name[:128]
 
-
 # Función para procesar los archivos y cargarlos a BigQuery, llamada por Pub/Sub
 def process_file(file_name):
     try:
@@ -386,6 +394,8 @@ def process_file(file_name):
                 df = pd.read_excel(io.BytesIO(file_data), skiprows=3)
             elif "automatismo" in file_name.lower():
                 df = pd.read_excel(io.BytesIO(file_data), skiprows=4)
+            elif "habilidad" in file_name.lower():
+                df = pd.read_excel(io.BytesIO(file_data), skiprows=1)
             else:
                 df = pd.read_excel(io.BytesIO(file_data))
         else:
