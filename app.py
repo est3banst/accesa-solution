@@ -383,10 +383,10 @@ def process_file(file_name):
         if file_ext == "csv":
             df = pd.read_csv(io.BytesIO(file_data))
         elif file_ext in ["xls", "xlsx"]:
-            df = pd.read_excel(io.BytesIO(file_data))
+            df = pd.read_excel(io.BytesIO(file_data), header=None)
             logger.info(f"Dataframe actual: {df.shape}")
             if df.shape[1] == 1 and isinstance(df.iloc[0, 0], str) and df.iloc[0, 0].count(',') > 1:
-                # df = pd.read_excel(io.BytesIO(file_data), header=None)
+                
                 logger.warning("Improperly formatted Excel file with comma-delimited content.")
 
                 split_df = df.iloc[:, 0].str.split(',', expand=True)
@@ -402,6 +402,8 @@ def process_file(file_name):
                     df = pd.read_excel(io.BytesIO(file_data), skiprows=4)
                 elif "habilidad" in file_name.lower():
                     df = pd.read_excel(io.BytesIO(file_data), skiprows=1)
+                else:
+                    df = pd.read_excel(io.BytesIO(file_data))
             
         else:
             raise ValueError(f"error, unsupported file format {file_ext}")
