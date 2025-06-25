@@ -97,7 +97,7 @@ def fetch_monthly_roaming(table_name):
     return bq.query(query).to_dataframe()
 
 def summarize_dataframe(df, context=""):
-    model = TextGenerationModel.from_pretrained("text-bison@002")
+    model = TextGenerationModel.from_pretrained("text-bison@001")
     prompt = f"""
 Actúa como un analista de datos senior. Resume los siguientes datos ({context}) en español con una narrativa profesional, señalando tendencias, anomalías o valores atípicos.
  {df.describe(include='all').to_string()}
