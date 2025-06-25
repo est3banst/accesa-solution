@@ -37,8 +37,7 @@ def fetch_monthly_automatismo(table_name):
     bq = bigquery.Client()
     query = f"""
         SELECT 
-        * FROM `accesa-equipo3.accesa_dataset.{table_name}
-         `
+        * FROM `accesa-equipo3.accesa_dataset.{table_name}`
         ;
     """
     return bq.query(query).to_dataframe()
@@ -47,8 +46,7 @@ def fetch_monthly_reclamos(table_name):
     bq = bigquery.Client()
     query = f"""
         SELECT 
-        * FROM `accesa-equipo3.accesa_dataset.{table_name}
-         `
+        * FROM `accesa-equipo3.accesa_dataset.{table_name}`
         ;
     """
     return bq.query(query).to_dataframe()
@@ -58,8 +56,7 @@ def fetch_monthly_habilidad(table_name):
     bq = bigquery.Client()
     query = f"""
         SELECT 
-        * FROM `accesa-equipo3.accesa_dataset.{table_name}
-         `
+        * FROM `accesa-equipo3.accesa_dataset.{table_name}`
         ;
     """
     return bq.query(query).to_dataframe()
@@ -68,8 +65,7 @@ def fetch_monthly_skill(table_name):
     bq = bigquery.Client()
     query = f"""
         SELECT 
-        * FROM `accesa-equipo3.accesa_dataset.{table_name}
-         `
+        * FROM `accesa-equipo3.accesa_dataset.{table_name}`
         ;
     """
     return bq.query(query).to_dataframe()
@@ -78,8 +74,7 @@ def fetch_monthly_roaming(table_name):
     bq = bigquery.Client()
     query = f"""
         SELECT 
-        * FROM `accesa-equipo3.accesa_dataset.{table_name}
-         `
+        * FROM `accesa-equipo3.accesa_dataset.{table_name}`
         ;
     """
     return bq.query(query).to_dataframe()
