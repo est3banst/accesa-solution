@@ -97,7 +97,7 @@ def add_report_header(doc, month):
 def add_general_summary(doc):
     doc.add_heading("Resumen General", level=1)
     doc.add_paragraph(
-        "Este informe presenta los indicadores clave de desempeño (SLA) para el canal móvil en el período evaluado. Se analizan aspectos como llamadas entrantes, abandonos, tiempos de atención, congestión, automatismos y reclamos recibidos."
+        "Informe mensual de gestión de servicios de Accesa Contact Center para los servicios 0800 6611 y *611 de atención de clientes de Móvil Antel y 0800 2466, atención a Agentes de Venta y Clientes Internos. El servicio se atiende todos los días del año de 0 a 24 horas."
     )
 
 
@@ -272,13 +272,13 @@ def ms_to_hms(ms):
     return str(timedelta(seconds=seconds))
 
 def calc_reclamos(df):
-    df["acumulado_o_detallado"] = df["acumulado_o_detallado"].str.lower()
-    df = df[df["acumulado_o_detallado"] == "detallado"]
+    df["_acumulado_o_detallado_"] = df["_acumulado_o_detallado_"].str.lower()
+    df = df[df["_acumulado_o_detallado_"] == "detallado"]
 
-    total_tiempo_llamadas = df["manejo_total"].sum()
-    total_llamadas = df["manejo"].sum()
-    nombre_de_cola = df["nombre_de_cola"].to_list()
-    nombre_de_codigo_de_conclusion = df["nombre_de_codigo_de_conclusion"].to_list()
+    total_tiempo_llamadas = df["_manejo_total_"].sum()
+    total_llamadas = df["_manejo_"].sum()
+    nombre_de_cola = df["_nombre_de_cola_"].to_list()
+    nombre_de_codigo_de_conclusion = df["_nombre_de_codigo_de_conclusion_"].to_list()
 
     return {
         "total_tiempo_llamadas": ms_to_hms(total_tiempo_llamadas),
