@@ -340,7 +340,7 @@ def process_file(file_name):
                 elif "habilidad" in file_name.lower():
                     df = pd.read_excel(io.BytesIO(file_data), skiprows=1)
                 elif "congestion" in file_name.lower():
-                    df = [pd.read_excel(io.BytesIO(file_data), skiprows=4)]
+                    df = pd.read_excel(io.BytesIO(file_data), skiprows=4)
                 else:
                     df = pd.read_excel(io.BytesIO(file_data))
             
