@@ -305,7 +305,7 @@ def generate_report():
 
         for table, (fetch_fn, calc_fn) in handler_map.items():
             try:
-                df = fetch_fn(month)
+                df = fetch_fn(table)
                 if not df.empty:
                     metrics = calc_fn(df)
                     dataframes[table] = df.head(20)
