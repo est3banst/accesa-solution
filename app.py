@@ -49,6 +49,7 @@ def fetch_monthly_congestion(table_name):
         * FROM `accesa-equipo3.accesa_dataset.{table_name}` 
         ;
     """
+    return bq.query(query).to_dataframe()
 
 def fetch_monthly_reclamos(table_name):
     bq = bigquery.Client()
@@ -66,6 +67,7 @@ def fetch_monthly_incidencias(table_name):
         * FROM `accesa-equipo3.accesa_dataset.{table_name}`
         ;
     """
+    return bq.query(query).to_dataframe()
 
 def fetch_monthly_habilidad(table_name):
     bq = bigquery.Client()
