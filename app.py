@@ -388,16 +388,24 @@ def process_file(file_name):
         if file_ext == "csv":
             df = pd.read_csv(io.BytesIO(file_data))
         elif file_ext in ["xls", "xlsx"]:
-            if "roaming" in file_name.lower():
-                df = pd.read_excel(io.BytesIO(file_data), skiprows=6)
-            elif "skill" in file_name.lower():
-                df = pd.read_excel(io.BytesIO(file_data), skiprows=3)
-            elif "automatismo" in file_name.lower():
-                df = pd.read_excel(io.BytesIO(file_data), skiprows=4)
-            elif "habilidad" in file_name.lower():
-                df = pd.read_excel(io.BytesIO(file_data), skiprows=1)
+            df = pd.read_excel(io.BytesIO(file_data), header=None)
+    
+            if df.shape[1] == 1 and df.iloc[0, 0].count(',') > 1:
+                logger.warning("Improperly formatted Excel file with comma-delimited content.")
+                split_df = df[0].str.split(',', expand=True)
+                split_df.columns = split_df.iloc[0]
+                df = split_df.iloc[1:].reset_index(drop=True)
             else:
-                df = pd.read_excel(io.BytesIO(file_data))
+                if "roaming" in file_name.lower():
+                    df = pd.read_excel(io.BytesIO(file_data), skiprows=6)
+                elif "skill" in file_name.lower():
+                    df = pd.read_excel(io.BytesIO(file_data), skiprows=3)
+                elif "automatismo" in file_name.lower():
+                    df = pd.read_excel(io.BytesIO(file_data), skiprows=4)
+                elif "habilidad" in file_name.lower():
+                    df = pd.read_excel(io.BytesIO(file_data), skiprows=1)
+                else:
+                    df = pd.read_excel(io.BytesIO(file_data))
         else:
             raise ValueError(f"error, unsupported file format {file_ext}")
         logger.info(f"Dataframe shape: {df.shape}")
