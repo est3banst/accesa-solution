@@ -131,7 +131,7 @@ def fetch_monthly_roaming(table_name):
 def summarize_dataframe(df, context=""):
     model = TextGenerationModel.from_pretrained("text-bison@001")
     prompt = f"""
-Actúa como un analista de datos senior. Resume los siguientes datos ({context}) en español con una narrativa profesional, señalando tendencias, anomalías o valores atípicos.
+Actúa como un analista de datos senior. Resume los siguientes datos ({context}) en español con una narrativa profesional, señalando tendencias, cumplimiento del nivel de servicio, o valores atípicos.
  {df.describe(include='all').to_string()}
 """
     return model.predict(prompt=prompt, temperature=0.7, max_output_tokens=1024).text
@@ -569,7 +569,6 @@ def generate_report():
         month = data.get("month")
 
         metrics_by_section = {}
-        summaries_by_section = {}
         bq_client = bigquery.Client()
 
         for table, (fetch_fn, calc_fn) in handler_map.items():
@@ -583,14 +582,13 @@ def generate_report():
                     metrics = calc_fn(df)
                     logger.info(f"calcs returned: {metrics}")
                     metrics_by_section[table] = metrics
-                    summaries_by_section[table] = summarize_dataframe(df, context=metrics)
             except Exception as e:
                 logger.warning(f"Failed to fetch data for {table}: {e}")
 
         if not metrics_by_section:
             return jsonify({"error": f"No data for period {month}"}), 404
 
-        report_filename = build_report(month, metrics_by_section, summaries_by_section)
+        report_filename = build_report(month, metrics_by_section)
 
         storage_client = storage.Client()
         bucket = storage_client.bucket(BUCKET_NAME)
