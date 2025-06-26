@@ -14,6 +14,7 @@ from google.cloud import bigquery
 import pandas as pd
 import re
 import unicodedata
+import calendar
 import io
 
 
@@ -32,6 +33,17 @@ CORS(app,
 BUCKET_NAME = "accesa-data-gather"
 
 vertexai.init(project="accesa-equipo3", location="southamerica-east1")
+
+
+
+def convert_month_to_abbr(month_str):
+    """Convert '2025-04' to 'Abr-25'"""
+    year, month = map(int, month_str.split('-'))
+    month_names = {
+        1: "Ene", 2: "Feb", 3: "Mar", 4: "Abr", 5: "May", 6: "Jun",
+        7: "Jul", 8: "Ago", 9: "Sep", 10: "Oct", 11: "Nov", 12: "Dic"
+    }
+    return f"{month_names.get(month, '---')}-{str(year)[2:]}"
 
 def fetch_monthly_automatismo(table_name):
     bq = bigquery.Client()
@@ -117,50 +129,69 @@ def add_general_summary(doc):
     )
     
     
-def add_antel_movil_611_table(doc, month, habilidad_metrics, skill_metrics, congestion_metrics):
+def add_summary_table_movil_611(doc, month_str, metrics):
     """
-    Creates a specific table with labeled rows and values using combined metrics.
+    custom summary table for Antel - Móvil 611 specific layout and formatting.
     """
-    doc.add_heading(f"Antel - Móvil 611 ({month})", level=1)
-
-    rows = [
-        ("Llamadas al servicio", habilidad_metrics.get("llamadas_al_servicio") or skill_metrics.get("llamadas_al_servicio")),
-        ("Llamadas atendidas totales", skill_metrics.get("llamadas_atendidas_totales")),
-        ("Llamadas abandonadas", habilidad_metrics.get("llamadas_abandonadas") or skill_metrics.get("llamadas_abandonadas")),
-        ("% Llamadas no atendidas", habilidad_metrics.get("porcentaje_no_atendidas")),
-        ("Cumplimiento Nivel de Servicio 80/20", f"{skill_metrics.get('nivel_de_servicio_80_20')}%"),
-        ("Índice de respuesta", f"{habilidad_metrics.get('indice_respuesta')}%"),
-        ("TRSAC", f"{skill_metrics.get('trsac')} seg."),
-        ("Promedio de operación (segundos)", skill_metrics.get("promedio_tiempo_operacion_segundos")),
-        ("Tiempo total atención (horas)", skill_metrics.get("total_horas_operacion")),
-        ("Congestión", f"{congestion_metrics.get('congestion_6611')} intentos")
-    ]
+    def format_value(key):
+        value = metrics.get(key, 'N/A')
+        if value == 'N/A':
+            return value
+        if key in ["porcentaje_no_atendidas", "nivel_de_servicio_80_20", "indice_respuesta", "congestion_6611"]:
+            return f"{value:.2f}%" if isinstance(value, (int, float)) else str(value)
+        elif key in ["promedio_tiempo_operacion_segundos", "tiempo_total_atencion_horas"]:
+            return f"{value:.2f}"
+        else:
+            return f"{int(value):,}" if isinstance(value, (int, float)) else str(value)
 
     table = doc.add_table(rows=1, cols=2)
     table.style = 'Table Grid'
 
     hdr_cells = table.rows[0].cells
-    hdr_cells[0].text = "Indicador"
-    hdr_cells[1].text = "Valor"
+    hdr_cells[0].text = "ANTEL - MÓVIL 611"
+    hdr_cells[1].text = month_str
 
-    for label, value in rows:
+    rows = [
+        ("Llamadas al servicio", "llamadas_al_servicio"),
+        ("Llamadas atendidas totales", "llamadas_atendidas_totales"),
+        ("Llamadas abandonadas", "llamadas_abandonadas"),
+        ("% Llamadas no atendidas", "porcentaje_no_atendidas"),
+        ("Cumplimiento Nivel de Servicio 80/20", "nivel_de_servicio_80_20"),
+        ("Índice de respuesta", "indice_respuesta"),
+        ("TRSAC", "trsac"),
+        ("Promedio operación (segundos)", "promedio_tiempo_operacion_segundos"),
+        ("Tiempo total atención (horas)", "tiempo_total_atencion_horas"),
+        ("Congestión", "congestion_6611"),
+    ]
+
+    for label, key in rows:
         row = table.add_row().cells
         row[0].text = label
-        row[1].text = str(value if value is not None else "N/A")
-    
-def add_incidencias_list(doc, title, metrics):
-    doc.add_heading(title, level=1)
-    
+        row[1].text = format_value(key)
+
+    promedio = metrics.get("promedio_llamadas_por_dia")
+    if promedio is not None:
+        doc.add_paragraph(
+            f"El promedio de llamadas diarias ingresadas al servicio en el mes fue de {promedio:,} llamadas."
+        )
+        
+
+def add_incidencias_bullet_section(doc, metrics):
+    """
+    Adds a heading and a bulleted list of incidencias, with their dates and descriptions.
+    """
     fechas = metrics.get("fecha_incidente", [])
     descripciones = metrics.get("descripcion_incidente", [])
-    
-    if len(fechas) != len(descripciones):
-        doc.add_paragraph("No se pudo mostrar correctamente las incidencias.")
+
+    if fechas is None or descripciones is None or len(fechas) == 0:
+        doc.add_paragraph("No se registraron incidencias que afectaran el servicio móvil este mes.")
         return
+
+    doc.add_paragraph("Incidencias que afectaron el servicio móvil en el mes:", style="List Bullet")
 
     for fecha, descripcion in zip(fechas, descripciones):
         item = f"{fecha}: {descripcion}"
-        doc.add_paragraph(item, style='List Bullet')
+        doc.add_paragraph(item, style="List Bullet")
 
 
 def add_metrics_section(doc, section_title, metrics_dict, summary_text=None):
@@ -236,36 +267,41 @@ def add_dataframe_table(doc, section_title, df, summary_text=None):
         cells = table.add_row().cells
         for i, val in enumerate(row):
             cells[i].text = str(val)
+            
+            
 def build_report(month, metrics_by_section, summaries_by_section):
     doc = Document()
     add_report_header(doc, month)
     add_general_summary(doc)
 
-    try:
-        habilidad = metrics_by_section.get("habilidad_data", {})
-        skill = metrics_by_section.get("skill_data", {})
-        congestion = metrics_by_section.get("congestion_data", {})
-        add_antel_movil_611_table(doc, month, habilidad, skill, congestion)
-        promedio = habilidad.get("promedio_llamadas_por_dia")
-        if promedio:
-            doc.add_paragraph(f"Promedio de llamadas por día: {promedio}", style="Intense Quote")
-   
-    except Exception as e:
-        logger.warning(f"Could not render custom 611 table: {e}")
+    doc.add_heading("Indicadores de Gestión de las Llamadas", level=1)
 
-    for section, metrics in metrics_by_section.items():
-        if section in ["habilidad_data", "skill_data", "congestion_data", "incidencias_data"]:
-            continue 
+    combined_611_metrics = {}
+    combined_611_metrics.update(metrics_by_section.get("habilidad_data", {}))
+    combined_611_metrics.update(metrics_by_section.get("skill_data", {}))
+    combined_611_metrics.update(metrics_by_section.get("reclamos_data", {}))
+    combined_611_metrics.update(metrics_by_section.get("congestion_data", {}))
 
-        summary_text = summaries_by_section.get(section, "")
-        add_metrics_section(doc, section.replace("_", " ").title(), metrics, summary_text)
+    if "total_tiempo_llamadas" in combined_611_metrics:
+        ms = combined_611_metrics["total_tiempo_llamadas"]
+        combined_611_metrics["tiempo_total_atencion_horas"] = round(ms / (1000 * 60 * 60), 2)
+
+    add_summary_table_movil_611(doc, convert_month_to_abbr(month), combined_611_metrics)
 
     if "incidencias_data" in metrics_by_section:
-        add_incidencias_list(doc, "Incidencias que afectaron el servicio móvil en el mes", metrics_by_section["incidencias_data"])
+        incidencias_metrics = metrics_by_section["incidencias_data"]
+        add_incidencias_bullet_section(doc, incidencias_metrics)
+
+    for section, metrics in metrics_by_section.items():
+        if section in {"habilidad_data", "skill_data", "reclamos_data", "congestion_data", "incidencias_data"}:
+            continue  
+        summary = summaries_by_section.get(section, "")
+        add_metrics_section(doc, section, metrics, summary)
 
     filename = f"reporte_{month}.docx"
     doc.save(filename)
     return filename
+
 
 
 @app.route("/generate-signed-url", methods=["POST", "OPTIONS"])
