@@ -145,7 +145,7 @@ def add_header_image(doc, image_path):
         header = section.header
         paragraph = header.paragraphs[0]
         run = paragraph.add_run()
-        run.add_picture(image_path, width=Inches(6.0)) 
+        run.add_picture(image_path, width=Inches(5.0)) 
     else:
         print(f"Header image not found: {image_path}")
 
@@ -391,14 +391,61 @@ def build_report(month, metrics_by_section, summaries_by_section):
         add_summary_table_reclamos(
         doc, convert_month_to_abbr(month), metrics_by_section["reclamos_data"]
     )
-        
-    for section, metrics in metrics_by_section.items():
-        if section in {"habilidad_data", "reclamos_data", "skill_data", "automatismo_data","congestion_data", "incidencias_data"}:
-            continue 
-        summary = summaries_by_section.get(section, "")
-        add_metrics_section(doc, section, metrics, summary)
-        
+    
+    if "roaming_data" in metrics_by_section:
+        doc.add_paragraph().add_run("Asistencia por Roaming vía WhatsApp (092611611 opción 7)").bold = True
+        doc.add_paragraph("")
+
+        roaming_metrics = metrics_by_section["roaming_data"]
+
+        table = doc.add_table(rows=5, cols=2) 
+        table.style = 'Table Grid'
+
+        hdr_cells = table.rows[0].cells
+        hdr_cells[0].merge(hdr_cells[1])
+        hdr_cells[0].text = convert_month_to_abbr(month)  
+        hdr_cells[0].paragraphs[0].runs[0].bold = True
+
+        rows = [
+        ("Cantidad de mensajes entrantes", "mensajes_entrantes"),
+        ("Cantidad de mensajes salientes", "mensajes_salientes"),
+        ("Total de mensajes", "total_mensajes"),
+        ("Promedio de mensajes por interacción", "promedio_mensajes_por_interaccion"),
+    ]
+
+        for idx, (label, key) in enumerate(rows, start=1):
+            row_cells = table.rows[idx].cells
+            row_cells[0].text = label
+            value = roaming_metrics.get(key)
+            row_cells[1].text = str(value if value is not None else "N/A")
+
+
+      
+    if "congestion_data" in metrics_by_section:
+        doc.add_paragraph().add_run("Congestión").bold = True
+        congestion_raw = metrics_by_section["congestion_data"].get("congestion_6611")
+
+        try:
+            congestion_value = f"{float(congestion_raw):.2f}%"
+        except (ValueError, TypeError):
+            congestion_value = "N/A"
+
+        promedio_operacion = skill.get("promedio_tiempo_operacion_segundos", "N/A")
+        trsac = skill.get("trsac", "N/A")
+
+        doc.add_paragraph(f"La congestión del mes fue de: {congestion_value}")
+        doc.add_paragraph(
+        f"Durante el mes el tiempo de operación promedio fue de {promedio_operacion} y el TRSAC fue de {trsac}"
+        )
+   
     if "automatismo_data" in metrics_by_section:
+        p = doc.add_paragraph()
+        p.add_run("Automatismos").bold = True
+
+        doc.add_paragraph(
+            "El uso de automatismos libera recursos para la atención de otras consultas más complejas."
+            "Actualmente está operativa una automatización permanente para el servicio brindado a Móvil Antel."
+        )
         add_summary_table_automatismos(
         doc, convert_month_to_abbr(month), metrics_by_section["automatismo_data"]
         )
@@ -498,9 +545,9 @@ def generate_report():
     "habilidad_data": (fetch_monthly_habilidad, calc_habilidad),
     "skill_data": (fetch_monthly_skill, calc_skill),
     "reclamos_data":(fetch_monthly_reclamos, calc_reclamos),
-    "congestion_data": (fetch_monthly_congestion, calc_congestion),
     "automatismo_data": (fetch_monthly_automatismo, calc_automatismo),
-    "incidencias_data" : (fetch_monthly_incidencias, calc_incidencias)
+    "incidencias_data" : (fetch_monthly_incidencias, calc_incidencias),
+    "congestion_data": (fetch_monthly_congestion, calc_congestion),
     }
     try:
         data = request.get_json()
@@ -729,7 +776,7 @@ def calc_congestion(df):
     df_uno_dos_uno = df["col_121_"].sum()
     
     return {
-        "congestion_6611": int(df_seis_uno)
+        "congestion_6611": float(df_seis_uno)
     }
 
 
@@ -748,8 +795,11 @@ def calc_roaming(df):
     
 
 def calc_automatismo(df):
-    total_correcto = df["total_correcto"].sum() - df["total_correcto"][-1]
-    total_error = df["total_error"].sum() - df["total_error"][-1]
+    last_row_correcto = df["total_correcto"].iloc[-1]
+    last_row_error = df["total_error"].iloc[-1]
+
+    total_correcto = df["total_correcto"].sum() - last_row_correcto
+    total_error = df["total_error"].sum() - last_row_error
 
     porcentaje_correcto = ((total_correcto * 100 )/ (total_correcto + total_error)) if (total_correcto + total_error) > 0 else 0
     porcentaje_error = ((total_error * 100) / (total_correcto + total_error)) if (total_correcto + total_error) > 0 else 0
