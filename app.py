@@ -290,13 +290,13 @@ def add_incidencias_bullet_section(doc, metrics):
 
     doc.add_paragraph("")
     if fechas is None or descripciones is None or len(fechas) == 0:
-        doc.add_paragraph("No se registraron incidencias que afectaran el servicio móvil este mes.")
+        doc.add_paragraph("No se registraron incidencias que afectaran el servicio móvil este mes.", style="Subtitle")
         return
-    doc.add_paragraph("Incidencias que afectaron el servicio móvil en el mes:", style="List Bullet")
+    doc.add_paragraph("Incidencias que afectaron el servicio móvil en el mes:",style="Subtitle")
 
     for fecha, descripcion in zip(fechas, descripciones):
         item = f"{fecha}: {descripcion}"
-        doc.add_paragraph(item, style="List Bullet")
+        doc.add_paragraph(item, style="List Bullet", level=5)
     doc.add_paragraph("")
 
 
@@ -793,11 +793,11 @@ def calc_incidencias(df):
 def calc_reclamos(df):
     df["_acumulado_o_detallado_"] = df["_acumulado_o_detallado_"].astype(str).str.strip().str.lower()
     
-    print("Unique values in _acumulado_o_detallado_ before filtering:", df["_acumulado_o_detallado_"].unique())
-    print("DF size before filtering:", len(df))
+    logger.info("Unique values in _acumulado_o_detallado_ before filtering:", df["_acumulado_o_detallado_"].unique())
+    logger.info("DF size before filtering:", len(df))
     
     df = df[df["_acumulado_o_detallado_"] == "detallado"]
-    print("DF size after filtering:", len(df))
+    logger.info("DF size after filtering:", len(df))
 
     df["_manejo_total_"] = pd.to_numeric(df["_manejo_total_"], errors="coerce").fillna(0)
     df["_manejo_"] = pd.to_numeric(df["_manejo_"], errors="coerce").fillna(0)
