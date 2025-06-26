@@ -35,9 +35,18 @@ BUCKET_NAME = "accesa-data-gather"
 vertexai.init(project="accesa-equipo3", location="southamerica-east1")
 
 
+def wait_for_table_data(bq_client, table_id, timeout=15, interval=3):
+    import time
+    start = time.time()
+    while time.time() - start < timeout:
+        df = bq_client.query(f"SELECT COUNT(*) as total FROM `{table_id}`").to_dataframe()
+        if df["total"][0] > 0:
+            return True
+        time.sleep(interval)
+    return False
 
 def convert_month_to_abbr(month_str):
-    """Convert '2025-04' to 'Abr-25'"""
+    """Convert 'YEAR-MONTH' to 'MONTH-YEAR'"""
     year, month = map(int, month_str.split('-'))
     month_names = {
         1: "Ene", 2: "Feb", 3: "Mar", 4: "Abr", 5: "May", 6: "Jun",
@@ -423,8 +432,13 @@ def generate_report():
 
         metrics_by_section = {}
         summaries_by_section = {}
+        bq_client = bigquery.Client()
 
         for table, (fetch_fn, calc_fn) in handler_map.items():
+            table_id = f"accesa-equipo3.accesa_dataset.{table}"
+            if not wait_for_table_data(bq_client, table_id):
+                logger.error(f"Tiempo agotado para la tabla: {table}")
+                raise RuntimeError(f"Timeout for data in table: {table}")
             try:
                 df = fetch_fn(table)
                 if not df.empty:
