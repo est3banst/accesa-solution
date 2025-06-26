@@ -127,12 +127,14 @@ def add_general_summary(doc):
     doc.add_paragraph(
         "Informe mensual de gestión de servicios de Accesa Contact Center para los servicios 0800 6611 y *611 de atención de clientes de Móvil Antel y 0800 2466, atención a Agentes de Venta y Clientes Internos. El servicio se atiende todos los días del año de 0 a 24 horas."
     )
+    doc.add_paragraph("")
     
     
 def add_summary_table_movil_611(doc, month_str, metrics):
     """
     Adds the custom summary table for Antel - Móvil 611 section with specific fields and structure.
     """
+    doc.add_paragraph("")
     table = doc.add_table(rows=1, cols=2)
     table.style = 'Table Grid'
 
@@ -147,7 +149,7 @@ def add_summary_table_movil_611(doc, month_str, metrics):
         ("% Llamadas no atendidas", "porcentaje_no_atendidas", "percent"),
         ("Cumplimiento Nivel de Servicio 80/20", "nivel_de_servicio_80_20", "percent"),
         ("Índice de respuesta", "indice_respuesta", "percent"),
-        ("TRSAC", "trsac", "float"),
+        ("TRSAC", "trsac", "int"),
         ("Promedio operación (segundos)", "promedio_tiempo_operacion_segundos", "float"),
         ("Tiempo total atención (horas)", "tiempo_total_atencion_horas", "float"),
         ("Congestión", "congestion_6611", "percent")
@@ -176,9 +178,11 @@ def add_summary_table_movil_611(doc, month_str, metrics):
     if promedio is not None:
         try:
             promedio_val = int(promedio)
+            doc.add_paragraph("")
             doc.add_paragraph(
                 f"El promedio de llamadas diarias ingresado al servicio en el mes fue de {promedio_val:,}"
             )
+            doc.add_paragraph("")
         except (ValueError, TypeError):
             pass
      
@@ -190,15 +194,16 @@ def add_incidencias_bullet_section(doc, metrics):
     fechas = metrics.get("fecha_incidente", [])
     descripciones = metrics.get("descripcion_incidente", [])
 
+    doc.add_paragraph("")
     if fechas is None or descripciones is None or len(fechas) == 0:
         doc.add_paragraph("No se registraron incidencias que afectaran el servicio móvil este mes.")
         return
-
     doc.add_paragraph("Incidencias que afectaron el servicio móvil en el mes:", style="List Bullet")
 
     for fecha, descripcion in zip(fechas, descripciones):
         item = f"{fecha}: {descripcion}"
         doc.add_paragraph(item, style="List Bullet")
+    doc.add_paragraph("")
 
 
 def add_metrics_section(doc, section_title, metrics_dict, summary_text=None):
@@ -598,7 +603,16 @@ def calc_habilidad(df):
     }
 
 def calc_skill(df):
-    trsac_antel_movil = df["demora_en_atender"][1] if len(df["demora_en_atender"]) > 1 else 0
+    def parse_trsac_string(value):
+        try:
+            h, m, s = map(int, value.split(":"))
+            return h * 3600 + m * 60 + s
+        except:
+            return 0
+
+    trsac_value = df["demora_en_atender"][1] if len(df["demora_en_atender"]) > 1 else "00:00:00"
+    trsac_antel_movil = parse_trsac_string(trsac_value)
+
     antel_movil_ofrecidas = df["ofrecidas"][1] if len(df["ofrecidas"]) > 1 else 0
     antel_movil_contestadas = df["contestadas"][1] if len(df["contestadas"]) > 1 else 0
     antel_movil_abandonadas = df["abandonadas"][1] if len(df["abandonadas"]) > 1 else 0
@@ -616,7 +630,9 @@ def calc_skill(df):
         "referentes_movil_ofrecidas": referentes_movil_ofrecidas,
         "tiempo_total_atencion_horas": horas_operacion,
         "nivel_de_servicio_80_20": nivel_de_servicio,
-        "promedio_tiempo_operacion_segundos": promedio_tiempo_operacion_segundos,}
+        "promedio_tiempo_operacion_segundos": promedio_tiempo_operacion_segundos,
+    }
+
 
 def calc_congestion(df):
     df_seis_uno = df["col_6611_"].sum()
