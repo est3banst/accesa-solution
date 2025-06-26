@@ -283,25 +283,33 @@ def build_report(month, metrics_by_section, summaries_by_section):
 
     doc.add_heading("Indicadores de Gestión de las Llamadas", level=1)
 
-    combined_611_metrics = {}
-    combined_611_metrics.update(metrics_by_section.get("habilidad_data", {}))
-    combined_611_metrics.update(metrics_by_section.get("skill_data", {}))
-    combined_611_metrics.update(metrics_by_section.get("reclamos_data", {}))
-    combined_611_metrics.update(metrics_by_section.get("congestion_data", {}))
+    habilidad = metrics_by_section.get("habilidad_data", {})
+    skill = metrics_by_section.get("skill_data", {})
+    congestion = metrics_by_section.get("congestion_data", {})
+    incidencias = metrics_by_section.get("incidencias_data", {})
 
-    if "total_tiempo_llamadas" in combined_611_metrics:
-        ms = combined_611_metrics["total_tiempo_llamadas"]
-        combined_611_metrics["tiempo_total_atencion_horas"] = round(ms / (1000 * 60 * 60), 2)
+    combined_611_metrics = {
+        "llamadas_al_servicio": habilidad.get("llamadas_al_servicio"),
+        "llamadas_atendidas_totales": skill.get("llamadas_atendidas_totales"),
+        "llamadas_abandonadas": skill.get("llamadas_abandonadas"),
+        "porcentaje_no_atendidas": habilidad.get("porcentaje_no_atendidas"),
+        "nivel_de_servicio_80_20": skill.get("nivel_de_servicio_80_20"),
+        "indice_respuesta": habilidad.get("indice_respuesta"),
+        "trsac": skill.get("trsac"),
+        "promedio_tiempo_operacion_segundos": skill.get("promedio_tiempo_operacion_segundos"),
+        "tiempo_total_atencion_horas": skill.get("tiempo_total_atencion_horas"),  # <- from skill
+        "congestion_6611": congestion.get("congestion_6611"),
+        "promedio_llamadas_por_dia": habilidad.get("promedio_llamadas_por_dia"),
+    }
 
     add_summary_table_movil_611(doc, convert_month_to_abbr(month), combined_611_metrics)
 
-    if "incidencias_data" in metrics_by_section:
-        incidencias_metrics = metrics_by_section["incidencias_data"]
-        add_incidencias_bullet_section(doc, incidencias_metrics)
+    if incidencias:
+        add_incidencias_bullet_section(doc, incidencias)
 
     for section, metrics in metrics_by_section.items():
-        if section in {"habilidad_data", "skill_data", "reclamos_data", "congestion_data", "incidencias_data"}:
-            continue  
+        if section in {"habilidad_data", "skill_data", "congestion_data", "incidencias_data"}:
+            continue 
         summary = summaries_by_section.get(section, "")
         add_metrics_section(doc, section, metrics, summary)
 
