@@ -398,13 +398,15 @@ def process_file(file_name):
 
         bq_client = bigquery.Client(project=project_id)
 
+        dataset_ref = bq_client.dataset(dataset_id)
+
         try:
-            bq_client.get_dataset(f"{project_id}.{dataset_id}")
+            bq_client.get_dataset(dataset_ref)
             logger.info(f"Dataset {dataset_id} already exists.")
         except NotFound:
             logger.warning(f"Dataset {dataset_id} not found. Creating it...")
-            dataset = bigquery.Dataset(f"{project_id}.{dataset_id}")
-            dataset.location = "southamerica-east1" 
+            dataset = bigquery.Dataset(dataset_ref)
+            dataset.location = "southamerica-east1"
             dataset = bq_client.create_dataset(dataset)
             logger.info(f"Created dataset: {dataset.dataset_id}")
 
