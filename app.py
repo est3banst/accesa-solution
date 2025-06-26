@@ -145,9 +145,9 @@ def add_header_image(doc, image_path):
         header = section.header
         paragraph = header.paragraphs[0]
         run = paragraph.add_run()
-        run.add_picture(image_path, width=Inches(6.0))
+        run.add_picture(image_path, width=Inches(6.0)) 
     else:
-        logger.info(f"Header image not found: {image_path}")
+        print(f"Header image not found: {image_path}")
 
 def add_footer_image(doc, image_path):
     if os.path.exists(image_path):
@@ -155,10 +155,10 @@ def add_footer_image(doc, image_path):
         footer = section.footer
         paragraph = footer.paragraphs[0]
         run = paragraph.add_run()
-        run.add_picture(image_path, width=Inches(6.0))
+        run.add_picture(image_path, width=Inches(6.0))  
     else:
-        logger.info(f"Footer image not found: {image_path}")   
-    
+        print(f"Footer image not found: {image_path}")
+         
 def add_summary_table_movil_611(doc, month_str, metrics):
     """
     Adds the custom summary table for Antel - Móvil 611 section with specific fields and structure.
@@ -366,7 +366,6 @@ def add_dataframe_table(doc, section_title, df, summary_text=None):
             
 def build_report(month, metrics_by_section, summaries_by_section):
     doc = Document()
-    
         
     add_header_image(doc, "assets/accesa-header-doc.png")
     add_footer_image(doc, "assets/accesa-footer-doc.png")
@@ -792,6 +791,10 @@ def calc_incidencias(df):
     }
 
 def calc_reclamos(df):
+    print("Unique values in acumulado_o_detallado before filtering:", df["_acumulado_o_detallado_"].unique())
+    print("DF size before filtering:", len(df))
+    df = df[df["_acumulado_o_detallado_"] == "detallado"]
+    print("DF size after filtering:", len(df))
     df["_acumulado_o_detallado_"] = df["_acumulado_o_detallado_"].astype(str).str.strip().str.lower()
     df = df[df["_acumulado_o_detallado_"] == "detallado"]
 
