@@ -139,19 +139,28 @@ def add_general_summary(doc):
     )
     doc.add_paragraph("")
     
+
 def add_header_image(doc, image_path):
     section = doc.sections[0]
     header = section.header
     paragraph = header.paragraphs[0]
     run = paragraph.add_run()
-    run.add_picture(image_path, width=Inches(6.5))
-
+    try:
+        run.add_picture(image_path, width=Inches(6.5))
+    except Exception as e:
+        print(f"Error adding header image: {e}")
+        
+        
 def add_footer_image(doc, image_path):
     section = doc.sections[0]
     footer = section.footer
     paragraph = footer.paragraphs[0]
     run = paragraph.add_run()
-    run.add_picture(image_path, width=Inches(6.5))    
+    try:
+        run.add_picture(image_path, width=Inches(6.5))
+    except Exception as e:
+        print(f"Error adding footer image: {e}")
+           
     
 def add_summary_table_movil_611(doc, month_str, metrics):
     """
@@ -360,11 +369,14 @@ def add_dataframe_table(doc, section_title, df, summary_text=None):
             
 def build_report(month, metrics_by_section, summaries_by_section):
     doc = Document()
-    add_report_header(doc, month)
-    add_general_summary(doc)
     
+        
     add_header_image(doc, "assets/accesa-header-doc.png")
     add_footer_image(doc, "assets/accesa-footer-doc.png")
+    
+    add_report_header(doc, month)
+    add_general_summary(doc)
+
 
     doc.add_heading("Indicadores de Gestión de las Llamadas", level=1)
 
@@ -786,14 +798,17 @@ def calc_reclamos(df):
     df["_acumulado_o_detallado_"] = df["_acumulado_o_detallado_"].str.lower()
     df = df[df["_acumulado_o_detallado_"] == "detallado"]
 
+    df["_manejo_total_"] = pd.to_numeric(df["_manejo_total_"], errors="coerce").fillna(0)
+    df["_manejo_"] = pd.to_numeric(df["_manejo_"], errors="coerce").fillna(0)
+
     total_tiempo_llamadas = df["_manejo_total_"].sum()
     total_llamadas = df["_manejo_"].sum()
-    nombre_de_cola = df["_nombre_de_cola_"].to_list()
-    nombre_de_codigo_de_conclusion = df["_nombre_de_codigo_de_conclusion_"].to_list()
+    nombre_de_cola = df["_nombre_de_cola_"].dropna().astype(str).to_list()
+    nombre_de_codigo_de_conclusion = df["_nombre_de_codigo_de_conclusion_"].dropna().astype(str).to_list()
 
     return {
         "total_tiempo_llamadas": ms_to_hms(total_tiempo_llamadas),
-        "total_llamadas": total_llamadas,
+        "total_llamadas": int(total_llamadas),
         "nombre_de_cola": nombre_de_cola,
         "nombre_de_codigo_de_conclusion": nombre_de_codigo_de_conclusion,
     }
