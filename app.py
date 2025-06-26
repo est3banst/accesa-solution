@@ -131,19 +131,8 @@ def add_general_summary(doc):
     
 def add_summary_table_movil_611(doc, month_str, metrics):
     """
-    custom summary table for Antel - Móvil 611 specific layout and formatting.
+    Adds the custom summary table for Antel - Móvil 611 section with specific fields and structure.
     """
-    def format_value(key):
-        value = metrics.get(key, 'N/A')
-        if value == 'N/A':
-            return value
-        if key in ["porcentaje_no_atendidas", "nivel_de_servicio_80_20", "indice_respuesta", "congestion_6611"]:
-            return f"{value:.2f}%" if isinstance(value, (int, float)) else str(value)
-        elif key in ["promedio_tiempo_operacion_segundos", "tiempo_total_atencion_horas"]:
-            return f"{value:.2f}"
-        else:
-            return f"{int(value):,}" if isinstance(value, (int, float)) else str(value)
-
     table = doc.add_table(rows=1, cols=2)
     table.style = 'Table Grid'
 
@@ -152,29 +141,47 @@ def add_summary_table_movil_611(doc, month_str, metrics):
     hdr_cells[1].text = month_str
 
     rows = [
-        ("Llamadas al servicio", "llamadas_al_servicio"),
-        ("Llamadas atendidas totales", "llamadas_atendidas_totales"),
-        ("Llamadas abandonadas", "llamadas_abandonadas"),
-        ("% Llamadas no atendidas", "porcentaje_no_atendidas"),
-        ("Cumplimiento Nivel de Servicio 80/20", "nivel_de_servicio_80_20"),
-        ("Índice de respuesta", "indice_respuesta"),
-        ("TRSAC", "trsac"),
-        ("Promedio operación (segundos)", "promedio_tiempo_operacion_segundos"),
-        ("Tiempo total atención (horas)", "tiempo_total_atencion_horas"),
-        ("Congestión", "congestion_6611"),
+        ("Llamadas al servicio", "llamadas_al_servicio", "int"),
+        ("Llamadas atendidas totales", "llamadas_atendidas_totales", "int"),
+        ("Llamadas abandonadas", "llamadas_abandonadas", "int"),
+        ("% Llamadas no atendidas", "porcentaje_no_atendidas", "percent"),
+        ("Cumplimiento Nivel de Servicio 80/20", "nivel_de_servicio_80_20", "percent"),
+        ("Índice de respuesta", "indice_respuesta", "percent"),
+        ("TRSAC", "trsac", "float"),
+        ("Promedio operación (segundos)", "promedio_tiempo_operacion_segundos", "float"),
+        ("Tiempo total atención (horas)", "tiempo_total_atencion_horas", "float"),
+        ("Congestión", "congestion_6611", "percent")
     ]
 
-    for label, key in rows:
+    for label, key, dtype in rows:
         row = table.add_row().cells
+        value = metrics.get(key)
+        if value is None:
+            display_value = "N/A"
+        else:
+            try:
+                if dtype == "percent":
+                    display_value = f"{float(value):.2f}%"
+                elif dtype == "float":
+                    display_value = f"{float(value):.2f}"
+                else:
+                    display_value = str(int(value))
+            except (ValueError, TypeError):
+                display_value = "N/A"
+
         row[0].text = label
-        row[1].text = format_value(key)
+        row[1].text = display_value
 
     promedio = metrics.get("promedio_llamadas_por_dia")
     if promedio is not None:
-        doc.add_paragraph(
-            f"El promedio de llamadas diarias ingresadas al servicio en el mes fue de {promedio:,} llamadas."
-        )
-        
+        try:
+            promedio_val = int(promedio)
+            doc.add_paragraph(
+                f"El promedio de llamadas diarias ingresado al servicio en el mes fue de {promedio_val:,}"
+            )
+        except (ValueError, TypeError):
+            pass
+     
 
 def add_incidencias_bullet_section(doc, metrics):
     """
@@ -572,7 +579,7 @@ def calc_habilidad(df):
     promedio_llamadas = total_llamadas / dias_mes if dias_mes else 0
 
     return {
-        "llamadas_al_servicio": total_llamadas,
+        "llamadas_servicio": total_llamadas,
         "llamadas_atendidas": atendidas,
         "llamadas_abandonadas": abandonadas,
         "porcentaje_no_atendidas": round(porcentaje_no_atendidas, 2),
@@ -597,7 +604,7 @@ def calc_skill(df):
         "llamadas_atendidas_totales": antel_movil_contestadas,
         "llamadas_abandonadas" : antel_movil_abandonadas,
         "referentes_movil_ofrecidas": referentes_movil_ofrecidas,
-        "total_horas_operacion": horas_operacion,
+        "tiempo_total_atencion_horas": horas_operacion,
         "nivel_de_servicio_80_20": nivel_de_servicio,
         "promedio_tiempo_operacion_segundos": promedio_tiempo_operacion_segundos,}
 
