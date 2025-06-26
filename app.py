@@ -97,7 +97,7 @@ def fetch_monthly_roaming(table_name):
     return bq.query(query).to_dataframe()
 
 def summarize_dataframe(df, context=""):
-    model = TextGenerationModel.from_pretrained("text-bison")
+    model = TextGenerationModel.from_pretrained("text-bison@001")
     prompt = f"""
 Actúa como un analista de datos senior. Resume los siguientes datos ({context}) en español con una narrativa profesional, señalando tendencias, anomalías o valores atípicos.
  {df.describe(include='all').to_string()}
@@ -115,36 +115,153 @@ def add_general_summary(doc):
     doc.add_paragraph(
         "Informe mensual de gestión de servicios de Accesa Contact Center para los servicios 0800 6611 y *611 de atención de clientes de Móvil Antel y 0800 2466, atención a Agentes de Venta y Clientes Internos. El servicio se atiende todos los días del año de 0 a 24 horas."
     )
+    
+    
+def add_antel_movil_611_table(doc, month, habilidad_metrics, skill_metrics, congestion_metrics):
+    """
+    Creates a specific table with labeled rows and values using combined metrics.
+    """
+    doc.add_heading(f"Antel - Móvil 611 ({month})", level=1)
+
+    rows = [
+        ("Llamadas al servicio", habilidad_metrics.get("llamadas_al_servicio") or skill_metrics.get("llamadas_al_servicio")),
+        ("Llamadas atendidas totales", skill_metrics.get("llamadas_atendidas_totales")),
+        ("Llamadas abandonadas", habilidad_metrics.get("llamadas_abandonadas") or skill_metrics.get("llamadas_abandonadas")),
+        ("% Llamadas no atendidas", habilidad_metrics.get("porcentaje_no_atendidas")),
+        ("Cumplimiento Nivel de Servicio 80/20", f"{skill_metrics.get('nivel_de_servicio_80_20')}%"),
+        ("Índice de respuesta", f"{habilidad_metrics.get('indice_respuesta')}%"),
+        ("TRSAC", f"{skill_metrics.get('trsac')} seg."),
+        ("Promedio de operación (segundos)", skill_metrics.get("promedio_tiempo_operacion_segundos")),
+        ("Tiempo total atención (horas)", skill_metrics.get("total_horas_operacion")),
+        ("Congestión", f"{congestion_metrics.get('congestion_6611')} intentos")
+    ]
+
+    table = doc.add_table(rows=1, cols=2)
+    table.style = 'Table Grid'
+
+    hdr_cells = table.rows[0].cells
+    hdr_cells[0].text = "Indicador"
+    hdr_cells[1].text = "Valor"
+
+    for label, value in rows:
+        row = table.add_row().cells
+        row[0].text = label
+        row[1].text = str(value if value is not None else "N/A")
+    
+def add_incidencias_list(doc, title, metrics):
+    doc.add_heading(title, level=1)
+    
+    fechas = metrics.get("fecha_incidente", [])
+    descripciones = metrics.get("descripcion_incidente", [])
+    
+    if len(fechas) != len(descripciones):
+        doc.add_paragraph("No se pudo mostrar correctamente las incidencias.")
+        return
+
+    for fecha, descripcion in zip(fechas, descripciones):
+        item = f"{fecha}: {descripcion}"
+        doc.add_paragraph(item, style='List Bullet')
+
 
 def add_metrics_section(doc, section_title, metrics_dict, summary_text=None):
     """
-    Add a heading, optional summary, and a key-value table of metrics to the curr document.
+    Adds a custom table per section using human-readable labels for each metric.
     """
     doc.add_heading(section_title.replace("_", " ").title(), level=1)
 
     if summary_text:
         doc.add_paragraph(summary_text)
 
+    custom_labels = {
+        "roaming_data": {
+            "mensajes_entrantes": "Mensajes entrantes",
+            "mensajes_salientes": "Mensajes salientes",
+            "total_mensajes": "Total de mensajes",
+            "promedio_mensajes_por_interaccion": "Prom. mensajes por interacción"
+        },
+        "automatismo_data": {
+            "total_correcto": "Total correcto",
+            "total_error": "Total error",
+            "total_automatismos": "Total automatismos",
+            "porcentaje_correcto": "% Correcto",
+            "porcentaje_error": "% Error"
+        },
+        "reclamos_data": {
+            "total_tiempo_llamadas": "Tiempo total de llamadas",
+            "total_llamadas": "Total llamadas",
+            "nombre_de_cola": "Colas involucradas",
+            "nombre_de_codigo_de_conclusion": "Códigos de conclusión"
+        },
+        "incidencias_data": None 
+    }
+
+    label_map = custom_labels.get(section_title, {})
+
+    if not label_map:
+    
+        logger.warning(f"No custom label mapping found for section: {section_title}")
+        return
+
     table = doc.add_table(rows=1, cols=2)
     table.style = 'Table Grid'
-    table.rows[0].cells[0].text = "Métrica"
-    table.rows[0].cells[1].text = "Valor"
 
     for key, value in metrics_dict.items():
+        if key not in label_map:
+            continue  
+
+        label = label_map[key]
         row_cells = table.add_row().cells
-        row_cells[0].text = key.replace("_", " ").capitalize()
+        row_cells[0].text = label
         row_cells[1].text = (
             ", ".join(value) if isinstance(value, list) else str(value)
         )
 
+
+def add_dataframe_table(doc, section_title, df, summary_text=None):
+    """
+    Crea el encabezado, resumen, y la tabla de un dataframe para el actual docx Documento.
+    """
+    doc.add_heading(section_title.replace("_", " ").title(), level=1)
+
+    if summary_text:
+        doc.add_paragraph(summary_text)
+
+    table = doc.add_table(rows=1, cols=len(df.columns))
+    table.style = 'Table Grid'
+
+    for i, col in enumerate(df.columns):
+        table.rows[0].cells[i].text = str(col)
+
+    for row in df.itertuples(index=False):
+        cells = table.add_row().cells
+        for i, val in enumerate(row):
+            cells[i].text = str(val)
 def build_report(month, metrics_by_section, summaries_by_section):
     doc = Document()
     add_report_header(doc, month)
     add_general_summary(doc)
 
+    try:
+        habilidad = metrics_by_section.get("habilidad_data", {})
+        skill = metrics_by_section.get("skill_data", {})
+        congestion = metrics_by_section.get("congestion_data", {})
+        add_antel_movil_611_table(doc, month, habilidad, skill, congestion)
+        promedio = habilidad.get("promedio_llamadas_por_dia")
+        if promedio:
+            doc.add_paragraph(f"Promedio de llamadas por día: {promedio}", style="Intense Quote")
+   
+    except Exception as e:
+        logger.warning(f"Could not render custom 611 table: {e}")
+
     for section, metrics in metrics_by_section.items():
+        if section in ["habilidad_data", "skill_data", "congestion_data", "incidencias_data"]:
+            continue 
+
         summary_text = summaries_by_section.get(section, "")
-        add_metrics_section(doc, section, metrics, summary_text)
+        add_metrics_section(doc, section.replace("_", " ").title(), metrics, summary_text)
+
+    if "incidencias_data" in metrics_by_section:
+        add_incidencias_list(doc, "Incidencias que afectaron el servicio móvil en el mes", metrics_by_section["incidencias_data"])
 
     filename = f"reporte_{month}.docx"
     doc.save(filename)
@@ -277,18 +394,6 @@ def generate_report():
             expiration=timedelta(minutes=15),
             method="GET"
         )
-        # bq = bigquery.Client()
-        # dataset_id = "accesa-equipo3.accesa_dataset"
-        # bq.delete_dataset(
-        #     dataset=dataset_id,
-        #     delete_contents=True,
-        #     not_found_ok=True
-        # )
-        # logger.info(f"Dataset {dataset_id} cleaned up after report gen.")
-        # dataset = bigquery.Dataset(dataset_id)
-        # dataset.location = "southamerica-east1"
-        # bq.create_dataset(dataset, exists_ok=True)
-        
         return jsonify({"download_url": url}), 200
 
     except Exception as e:
@@ -420,62 +525,6 @@ def process_file(file_name):
         logger.error(traceback.format_exc())
         raise
 
-
-def calc_skill(df):
-    trsac_antel_movil = df["demora_en_atender"][1] if len(df["demora_en_atender"]) > 1 else 0
-    antel_movil_ofrecidas = df["ofrecidas"][1] if len(df["ofrecidas"]) > 1 else 0
-    referentes_movil_ofrecidas = df["ofrecidas"][0] if len(df["ofrecidas"]) > 0 else 0
-    horas_operacion = df["horas_operacion"][1] if len(df["horas_operacion"]) > 1 else 0
-    promedio_tiempo_operacion_segundos = df["tiempo_operacion"][1] if len(df["tiempo_operacion"]) > 1 else 0
-    calidad = df["calidad_"][1] if len(df["calidad_"]) > 1 else 0
-    nivel_de_servicio = round(calidad * 100 / 80, 2)
-
-    return {
-        "trsac_antel_movil": trsac_antel_movil,
-        "antel_movil_ofrecidas": antel_movil_ofrecidas,
-        "referentes_movil_ofrecidas": referentes_movil_ofrecidas,
-        "horas_operacion": horas_operacion,
-        "nivel_de_servicio": nivel_de_servicio,
-        "promedio_tiempo_operacion_segundos": promedio_tiempo_operacion_segundos,}
-
-def calc_roaming(df):
-    mensajes_entrantes = df["cantidad_de_mensajes_entrantes"]
-    mensajes_salientes = df["cantidad_de_mensajes_salientes"]
-    total_mensajes = mensajes_entrantes + mensajes_salientes
-    promedio_mensajes_por_interaccion = df["promedio_de_mensajes_por_interaccion"]
-
-    return {
-        "mensajes_entrantes": mensajes_entrantes,
-        "mensajes_salientes": mensajes_salientes,
-        "total_mensajes": total_mensajes,
-        "promedio_mensajes_por_interaccion": promedio_mensajes_por_interaccion,
-    }
-    
-def calc_congestion(df):
-    df_seis_uno = df["col_6611_"].sum()
-    df_uno_dos_uno = df["col_121_"].sum()
-    
-    return {
-        "congestion_6611": int(df_seis_uno)
-    }
-
-def calc_automatismo(df):
-    total_correcto = df["total_correcto"].sum()
-    total_error = df["total_error"].sum()
-
-    porcentaje_correcto = ((total_correcto * 100 )/ (total_correcto + total_error)) if (total_correcto + total_error) > 0 else 0
-    porcentaje_error = ((total_error * 100) / (total_correcto + total_error)) if (total_correcto + total_error) > 0 else 0
-    total_automatismos = total_correcto + total_error
-
-    return {
-        "total_correcto": total_correcto,
-        "total_error": total_error,
-        "total_automatismos": total_automatismos,
-        "porcentaje_correcto": round(porcentaje_correcto, 2),
-        "porcentaje_error": round(porcentaje_error, 2),
-    }
-
-
 def calc_habilidad(df):
     total_llamadas = df["ofrecidas"].sum()
     atendidas = df["atendidas"].sum()
@@ -493,6 +542,66 @@ def calc_habilidad(df):
         "porcentaje_no_atendidas": round(porcentaje_no_atendidas, 2),
         "indice_respuesta": round(indice_respuesta, 2),
         "promedio_llamadas_por_dia": math.trunc(promedio_llamadas),
+    }
+
+def calc_skill(df):
+    trsac_antel_movil = df["demora_en_atender"][1] if len(df["demora_en_atender"]) > 1 else 0
+    antel_movil_ofrecidas = df["ofrecidas"][1] if len(df["ofrecidas"]) > 1 else 0
+    antel_movil_contestadas = df["contestadas"][1] if len(df["contestadas"]) > 1 else 0
+    antel_movil_abandonadas = df["abandonadas"][1] if len(df["abandonadas"]) > 1 else 0
+    referentes_movil_ofrecidas = df["ofrecidas"][0] if len(df["ofrecidas"]) > 0 else 0
+    horas_operacion = df["horas_operacion"][1] if len(df["horas_operacion"]) > 1 else 0
+    promedio_tiempo_operacion_segundos = df["tiempo_operacion"][1] if len(df["tiempo_operacion"]) > 1 else 0
+    calidad = df["calidad_"][1] if len(df["calidad_"]) > 1 else 0
+    nivel_de_servicio = round((calidad * 100) / 80, 2)
+
+    return {
+        "trsac": trsac_antel_movil,
+        "llamadas_al_servicio": antel_movil_ofrecidas,
+        "llamadas_atendidas_totales": antel_movil_contestadas,
+        "llamadas_abandonadas" : antel_movil_abandonadas,
+        "referentes_movil_ofrecidas": referentes_movil_ofrecidas,
+        "total_horas_operacion": horas_operacion,
+        "nivel_de_servicio_80_20": nivel_de_servicio,
+        "promedio_tiempo_operacion_segundos": promedio_tiempo_operacion_segundos,}
+
+def calc_congestion(df):
+    df_seis_uno = df["col_6611_"].sum()
+    df_uno_dos_uno = df["col_121_"].sum()
+    
+    return {
+        "congestion_6611": int(df_seis_uno)
+    }
+
+
+def calc_roaming(df):
+    mensajes_entrantes = df["cantidad_de_mensajes_entrantes"]
+    mensajes_salientes = df["cantidad_de_mensajes_salientes"]
+    total_mensajes = mensajes_entrantes + mensajes_salientes
+    promedio_mensajes_por_interaccion = df["promedio_de_mensajes_por_interaccion"]
+
+    return {
+        "mensajes_entrantes": mensajes_entrantes,
+        "mensajes_salientes": mensajes_salientes,
+        "total_mensajes": total_mensajes,
+        "promedio_mensajes_por_interaccion": promedio_mensajes_por_interaccion,
+    }
+    
+
+def calc_automatismo(df):
+    total_correcto = df["total_correcto"].sum()
+    total_error = df["total_error"].sum()
+
+    porcentaje_correcto = ((total_correcto * 100 )/ (total_correcto + total_error)) if (total_correcto + total_error) > 0 else 0
+    porcentaje_error = ((total_error * 100) / (total_correcto + total_error)) if (total_correcto + total_error) > 0 else 0
+    total_automatismos = total_correcto + total_error
+
+    return {
+        "total_correcto": total_correcto,
+        "total_error": total_error,
+        "total_automatismos": total_automatismos,
+        "porcentaje_correcto": round(porcentaje_correcto, 2),
+        "porcentaje_error": round(porcentaje_error, 2),
     }
 
 def ms_to_hms(ms):
