@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 from google.cloud import storage
-from google.api_core.exceptions import NotFound
+from google.api_core.exceptions import NotFound, Conflict
 from datetime import timedelta, datetime
 from vertexai.preview.language_models import TextGenerationModel
 import vertexai
@@ -289,7 +289,7 @@ def build_report(month, metrics_by_section, summaries_by_section):
     incidencias = metrics_by_section.get("incidencias_data", {})
 
     combined_611_metrics = {
-        "llamadas_al_servicio": habilidad.get("llamadas_al_servicio"),
+        "llamadas_al_servicio": skill.get("llamadas_al_servicio"),
         "llamadas_atendidas_totales": skill.get("llamadas_atendidas_totales"),
         "llamadas_abandonadas": skill.get("llamadas_abandonadas"),
         "porcentaje_no_atendidas": habilidad.get("porcentaje_no_atendidas"),
@@ -424,6 +424,7 @@ def generate_report():
                 df = fetch_fn(table)
                 if not df.empty:
                     metrics = calc_fn(df)
+                    logger.info(f"calcs returned: {metrics}")
                     metrics_by_section[table] = metrics
                     summaries_by_section[table] = summarize_dataframe(df, context=metrics)
             except Exception as e:
@@ -554,18 +555,19 @@ def process_file(file_name):
 
         bq_client = bigquery.Client(project=project_id)
 
-        dataset_ref = bq_client.dataset(dataset_id)
+        dataset_ref = f"{project_id}.{dataset_id}"
 
         try:
             bq_client.get_dataset(dataset_ref)
             logger.info(f"Dataset {dataset_id} already exists.")
         except NotFound:
-            logger.warning(f"Dataset {dataset_id} not found. Creating it...")
-            dataset = bigquery.Dataset(dataset_ref)
-            dataset.location = "southamerica-east1"
-            dataset = bq_client.create_dataset(dataset)
-            logger.info(f"Created dataset: {dataset.dataset_id}")
-
+            try:
+                dataset = bigquery.Dataset(dataset_ref)
+                dataset.location = "southamerica-east1"
+                bq_client.create_dataset(dataset)
+                logger.info(f"Created dataset: {dataset.dataset_id}")
+            except Conflict:
+                logger.info(f"Dataset {dataset_ref} already exists (race condition).")
         job = bq_client.load_table_from_dataframe(df, table_id)
         job.result()
 
