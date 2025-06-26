@@ -277,14 +277,14 @@ def generate_report():
             expiration=timedelta(minutes=15),
             method="GET"
         )
-        bq = bigquery.Client()
-        dataset_id = "accesa-equipo3.accesa_dataset"
-        bq.delete_dataset(
-            dataset=dataset_id,
-            delete_contents=True,
-            not_found_ok=True
-        )
-        logger.info(f"Dataset {dataset_id} cleaned up after report gen.")
+        # bq = bigquery.Client()
+        # dataset_id = "accesa-equipo3.accesa_dataset"
+        # bq.delete_dataset(
+        #     dataset=dataset_id,
+        #     delete_contents=True,
+        #     not_found_ok=True
+        # )
+        # logger.info(f"Dataset {dataset_id} cleaned up after report gen.")
         # dataset = bigquery.Dataset(dataset_id)
         # dataset.location = "southamerica-east1"
         # bq.create_dataset(dataset, exists_ok=True)
