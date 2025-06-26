@@ -361,13 +361,14 @@ def build_report(month, metrics_by_section, summaries_by_section):
         add_incidencias_bullet_section(doc, incidencias)
 
     for section, metrics in metrics_by_section.items():
-        if "automatismo_data" in metrics_by_section:
-            add_summary_table_automatismos(
-            doc, convert_month_to_abbr(month), metrics_by_section["automatismo_data"])
-        if section in {"habilidad_data", "skill_data", "congestion_data", "incidencias_data"}:
+        if section in {"habilidad_data", "skill_data", "automatismo_data","congestion_data", "incidencias_data"}:
             continue 
         summary = summaries_by_section.get(section, "")
         add_metrics_section(doc, section, metrics, summary)
+    if "automatismo_data" in metrics_by_section:
+        add_summary_table_automatismos(
+            doc, convert_month_to_abbr(month), metrics_by_section["automatismo_data"]
+        )
 
     filename = f"reporte_{month}.docx"
     doc.save(filename)
