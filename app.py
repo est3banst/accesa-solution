@@ -97,7 +97,7 @@ def fetch_monthly_roaming(table_name):
     return bq.query(query).to_dataframe()
 
 def summarize_dataframe(df, context=""):
-    model = TextGenerationModel.from_pretrained("text-bison@001")
+    model = TextGenerationModel.from_pretrained("text-bison")
     prompt = f"""
 Actúa como un analista de datos senior. Resume los siguientes datos ({context}) en español con una narrativa profesional, señalando tendencias, anomalías o valores atípicos.
  {df.describe(include='all').to_string()}
@@ -116,35 +116,35 @@ def add_general_summary(doc):
         "Informe mensual de gestión de servicios de Accesa Contact Center para los servicios 0800 6611 y *611 de atención de clientes de Móvil Antel y 0800 2466, atención a Agentes de Venta y Clientes Internos. El servicio se atiende todos los días del año de 0 a 24 horas."
     )
 
-
-def add_dataframe_table(doc, section_title, df, summary_text=None):
+def add_metrics_section(doc, section_title, metrics_dict, summary_text=None):
     """
-    Crea el encabezado, resumen, y la tabla de un dataframe para el actual docx Documento.
+    Add a heading, optional summary, and a key-value table of metrics to the curr document.
     """
     doc.add_heading(section_title.replace("_", " ").title(), level=1)
 
     if summary_text:
         doc.add_paragraph(summary_text)
 
-    table = doc.add_table(rows=1, cols=len(df.columns))
+    table = doc.add_table(rows=1, cols=2)
     table.style = 'Table Grid'
+    table.rows[0].cells[0].text = "Métrica"
+    table.rows[0].cells[1].text = "Valor"
 
-    for i, col in enumerate(df.columns):
-        table.rows[0].cells[i].text = str(col)
+    for key, value in metrics_dict.items():
+        row_cells = table.add_row().cells
+        row_cells[0].text = key.replace("_", " ").capitalize()
+        row_cells[1].text = (
+            ", ".join(value) if isinstance(value, list) else str(value)
+        )
 
-    for row in df.itertuples(index=False):
-        cells = table.add_row().cells
-        for i, val in enumerate(row):
-            cells[i].text = str(val)
-
-def build_report(month, dataframes, summaries):
+def build_report(month, metrics_by_section, summaries_by_section):
     doc = Document()
     add_report_header(doc, month)
     add_general_summary(doc)
 
-    for section, df in dataframes.items():
-        summary_text = summaries.get(section, "")
-        add_dataframe_table(doc, section, df, summary_text)
+    for section, metrics in metrics_by_section.items():
+        summary_text = summaries_by_section.get(section, "")
+        add_metrics_section(doc, section, metrics, summary_text)
 
     filename = f"reporte_{month}.docx"
     doc.save(filename)
@@ -248,23 +248,23 @@ def generate_report():
         data = request.get_json()
         month = data.get("month")
 
-        dataframes = {}
-        summaries = {}
+        metrics_by_section = {}
+        summaries_by_section = {}
 
         for table, (fetch_fn, calc_fn) in handler_map.items():
             try:
                 df = fetch_fn(table)
                 if not df.empty:
                     metrics = calc_fn(df)
-                    dataframes[table] = df.head(20)
-                    summaries[table] = summarize_dataframe(df, context=metrics)
+                    metrics_by_section[table] = metrics
+                    summaries_by_section[table] = summarize_dataframe(df, context=metrics)
             except Exception as e:
                 logger.warning(f"Failed to fetch data for {table}: {e}")
 
-        if not dataframes:
+        if not metrics_by_section:
             return jsonify({"error": f"No data for period {month}"}), 404
 
-        report_filename = build_report(month, dataframes, summaries)
+        report_filename = build_report(month, metrics_by_section, summaries_by_section)
 
         storage_client = storage.Client()
         bucket = storage_client.bucket(BUCKET_NAME)
