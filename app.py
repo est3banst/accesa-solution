@@ -292,7 +292,6 @@ def add_incidencias_bullet_section(doc, metrics):
     if fechas is None or descripciones is None or len(fechas) == 0:
         doc.add_paragraph("No se registraron incidencias que afectaran el servicio móvil este mes.", style="Subtitle")
         return
-    doc.add_paragraph("Incidencias que afectaron el servicio móvil en el mes:",style="Subtitle")
 
     for fecha, descripcion in zip(fechas, descripciones):
         item = f"{fecha}: {descripcion}"
@@ -340,29 +339,6 @@ def add_metrics_section(doc, section_title, metrics_dict, summary_text=None):
         row_cells[1].text = (
             ", ".join(value) if isinstance(value, list) else str(value)
         )
-
-
-def add_dataframe_table(doc, section_title, df, summary_text=None):
-    """
-    Crea el encabezado, resumen, y la tabla de un dataframe para el actual docx Documento.
-    """
-    doc.add_heading(section_title.replace("_", " ").title(), level=1)
-
-    if summary_text:
-        doc.add_paragraph(summary_text)
-
-    table = doc.add_table(rows=1, cols=len(df.columns))
-    table.style = 'Table Grid'
-
-    for i, col in enumerate(df.columns):
-        table.rows[0].cells[i].text = str(col)
-
-    for row in df.itertuples(index=False):
-        cells = table.add_row().cells
-        for i, val in enumerate(row):
-            cells[i].text = str(val)
-            
-
             
 def build_report(month, metrics_by_section, summaries_by_section):
     doc = Document()
@@ -398,21 +374,34 @@ def build_report(month, metrics_by_section, summaries_by_section):
     add_summary_table_movil_611(doc, convert_month_to_abbr(month), combined_611_metrics)
 
     if incidencias:
+        p = doc.add_paragraph()
+        p.add_run("Incidencias que afectaron el servicio móvil en el mes:").bold = True
         add_incidencias_bullet_section(doc, incidencias)
+        
+    p = doc.add_paragraph()
+    p.add_run("Gestión Sistema Reclamos").bold = True
 
+    doc.add_paragraph(
+        "Además de la atención de la línea los Agentes del servicio Móvil realizan la gestión de la bandeja "
+        "en el Sistema Reclamos de ANTEL. A dicha carpeta llegan las consultas de clientes provenientes de "
+        "Whatsapp, la App MiAntel, de la Web MiAntel y de las Oficinas Comerciales."
+    )
+   
+    if "reclamos_data" in metrics_by_section:
+        add_summary_table_reclamos(
+        doc, convert_month_to_abbr(month), metrics_by_section["reclamos_data"]
+    )
+        
     for section, metrics in metrics_by_section.items():
         if section in {"habilidad_data", "reclamos_data", "skill_data", "automatismo_data","congestion_data", "incidencias_data"}:
             continue 
         summary = summaries_by_section.get(section, "")
         add_metrics_section(doc, section, metrics, summary)
+        
     if "automatismo_data" in metrics_by_section:
         add_summary_table_automatismos(
-            doc, convert_month_to_abbr(month), metrics_by_section["automatismo_data"]
+        doc, convert_month_to_abbr(month), metrics_by_section["automatismo_data"]
         )
-    if "reclamos_data" in metrics_by_section:
-        add_summary_table_reclamos(
-        doc, convert_month_to_abbr(month), metrics_by_section["reclamos_data"]
-    )
 
     filename = f"reporte_{month}.docx"
     doc.save(filename)
