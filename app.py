@@ -430,7 +430,7 @@ def build_report(month, metrics_by_section):
 
     if "611_data" in metrics_by_section:
         add_summary_table_seisonce(
-        doc, convert_month_to_abbr(month), metrics_by_section["611_data"]
+        doc, metrics_by_section["611_data"]
     )
 
       
@@ -858,13 +858,20 @@ def calc_incidencias(df):
     }
 
 def calc_reclamos(df):
-    df["_acumulado_o_detallado_"] = df["_acumulado_o_detallado_"].astype(str).str.strip().str.lower()
-    
-    logger.info("Unique values in _acumulado_o_detallado_ before filtering:", df["_acumulado_o_detallado_"].unique())
-    logger.info("DF size before filtering:", len(df))
-    
+    df["_acumulado_o_detallado_"] = (
+        df["_acumulado_o_detallado_"]
+        .astype(str)
+        .str.strip()
+        .str.strip('"')
+        .str.lower()
+    )
+
+    logger.info("Unique values in _acumulado_o_detallado_ before filtering: %s", df["_acumulado_o_detallado_"].unique())
+    logger.info("DF size before filtering: %d", len(df))
+
     df = df[df["_acumulado_o_detallado_"] == "detallado"]
-    logger.info("DF size after filtering:", len(df))
+
+    logger.info("DF size after filtering: %d", len(df))
 
     df["_manejo_total_"] = pd.to_numeric(df["_manejo_total_"], errors="coerce").fillna(0)
     df["_manejo_"] = pd.to_numeric(df["_manejo_"], errors="coerce").fillna(0)
@@ -880,7 +887,6 @@ def calc_reclamos(df):
         "nombre_de_cola": nombre_de_cola,
         "nombre_de_codigo_de_conclusion": nombre_de_codigo_de_conclusion,
     }
-
 
 
 if __name__ == "__main__":
