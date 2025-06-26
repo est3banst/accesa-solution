@@ -113,8 +113,11 @@ def fetch_monthly_roaming(table_name):
     bq = bigquery.Client()
     query = f"""
         SELECT 
-        * FROM `accesa-equipo3.accesa_dataset.{table_name}`
-        ;
+            cantidad_de_mensajes_entrantes,
+            cantidad_de_mensajes_salientes,
+            total_de_mensajes,
+            promedio_de_mensajes_por_interaccion
+        FROM `accesa-equipo3.accesa_dataset.{table_name}`
     """
     return bq.query(query).to_dataframe()
 
@@ -781,10 +784,10 @@ def calc_congestion(df):
 
 
 def calc_roaming(df):
-    mensajes_entrantes = df["cantidad_de_mensajes_entrantes"][1]
-    mensajes_salientes = df["cantidad_de_mensajes_salientes"][1]
+    mensajes_entrantes = df["cantidad_de_mensajes_entrantes"]
+    mensajes_salientes = df["cantidad_de_mensajes_salientes"]
     total_mensajes = mensajes_entrantes + mensajes_salientes
-    promedio_mensajes_por_interaccion = df["promedio_de_mensajes_por_interaccion"][1]
+    promedio_mensajes_por_interaccion = df["promedio_de_mensajes_por_interaccion"]
 
     return {
         "mensajes_entrantes": mensajes_entrantes,
