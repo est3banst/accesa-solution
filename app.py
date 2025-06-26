@@ -117,22 +117,34 @@ def add_general_summary(doc):
     )
 
 
+def add_dataframe_table(doc, section_title, df, summary_text=None):
+    """
+    Crea el encabezado, resumen, y la tabla de un dataframe para el actual docx Documento.
+    """
+    doc.add_heading(section_title.replace("_", " ").title(), level=1)
+
+    if summary_text:
+        doc.add_paragraph(summary_text)
+
+    table = doc.add_table(rows=1, cols=len(df.columns))
+    table.style = 'Table Grid'
+
+    for i, col in enumerate(df.columns):
+        table.rows[0].cells[i].text = str(col)
+
+    for row in df.itertuples(index=False):
+        cells = table.add_row().cells
+        for i, val in enumerate(row):
+            cells[i].text = str(val)
+
 def build_report(month, dataframes, summaries):
     doc = Document()
     add_report_header(doc, month)
     add_general_summary(doc)
 
     for section, df in dataframes.items():
-        doc.add_heading(section.replace("_", " ").title(), level=1)
-        doc.add_paragraph(summaries.get(section, ""))
-        table = doc.add_table(rows=1, cols=len(df.columns))
-        table.style = 'Table Grid'
-        for i, col in enumerate(df.columns):
-            table.rows[0].cells[i].text = str(col)
-        for row in df.itertuples(index=False):
-            cells = table.add_row().cells
-            for i, val in enumerate(row):
-                cells[i].text = str(val)
+        summary_text = summaries.get(section, "")
+        add_dataframe_table(doc, section, df, summary_text)
 
     filename = f"reporte_{month}.docx"
     doc.save(filename)
@@ -205,6 +217,10 @@ def pubsub_hook():
         import json
         event_data = json.loads(data)
         file_name = event_data["name"]
+        if file_name.startswith("reports/") or file_name.endswith(".docx"):
+            logger.info(f"Archivo de reporte : {file_name}")
+            return "Archivo de reporte omitido", 200
+        
         try:
             logger.info(f"Triggering file process for: {file_name}")
             process_file(file_name)
@@ -261,12 +277,18 @@ def generate_report():
             expiration=timedelta(minutes=15),
             method="GET"
         )
-        project_id = "accesa-equipo3"
-        dataset_id = f"{project_id}.accesa_dataset"
         bq = bigquery.Client()
+        dataset_id = "accesa-equipo3.accesa_dataset"
         bq.delete_dataset(
-            dataset_id, delete_contents=True, not_found_ok=True
+            dataset=dataset_id,
+            delete_contents=True,
+            not_found_ok=True
         )
+        logger.info(f"Dataset {dataset_id} cleaned up after report gen.")
+        # dataset = bigquery.Dataset(dataset_id)
+        # dataset.location = "southamerica-east1"
+        # bq.create_dataset(dataset, exists_ok=True)
+        
         return jsonify({"download_url": url}), 200
 
     except Exception as e:
@@ -428,8 +450,8 @@ def calc_roaming(df):
     }
     
 def calc_congestion(df):
-    df_seis_uno = df["661_(%)"].sum()
-    df_uno_dos_uno = df["121_(%)"].sum()
+    df_seis_uno = df["col_6611_"].sum()
+    df_uno_dos_uno = df["col_121_"].sum()
     
     return {
         "congestion_6611": int(df_seis_uno)
