@@ -296,7 +296,7 @@ def add_incidencias_bullet_section(doc, metrics):
 
     for fecha, descripcion in zip(fechas, descripciones):
         item = f"{fecha}: {descripcion}"
-        doc.add_paragraph(item, style="List Bullet", level=5)
+        doc.add_paragraph(item, style="List Bullet")
     doc.add_paragraph("")
 
 
