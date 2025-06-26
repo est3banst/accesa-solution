@@ -139,28 +139,25 @@ def add_general_summary(doc):
     )
     doc.add_paragraph("")
     
-
 def add_header_image(doc, image_path):
-    section = doc.sections[0]
-    header = section.header
-    paragraph = header.paragraphs[0]
-    run = paragraph.add_run()
-    try:
-        run.add_picture(image_path, width=Inches(6.5))
-    except Exception as e:
-        print(f"Error adding header image: {e}")
-        
-        
+    if os.path.exists(image_path):
+        section = doc.sections[0]
+        header = section.header
+        paragraph = header.paragraphs[0]
+        run = paragraph.add_run()
+        run.add_picture(image_path, width=Inches(6.0))
+    else:
+        logger.info(f"Header image not found: {image_path}")
+
 def add_footer_image(doc, image_path):
-    section = doc.sections[0]
-    footer = section.footer
-    paragraph = footer.paragraphs[0]
-    run = paragraph.add_run()
-    try:
-        run.add_picture(image_path, width=Inches(6.5))
-    except Exception as e:
-        print(f"Error adding footer image: {e}")
-           
+    if os.path.exists(image_path):
+        section = doc.sections[0]
+        footer = section.footer
+        paragraph = footer.paragraphs[0]
+        run = paragraph.add_run()
+        run.add_picture(image_path, width=Inches(6.0))
+    else:
+        logger.info(f"Footer image not found: {image_path}")   
     
 def add_summary_table_movil_611(doc, month_str, metrics):
     """
@@ -795,7 +792,7 @@ def calc_incidencias(df):
     }
 
 def calc_reclamos(df):
-    df["_acumulado_o_detallado_"] = df["_acumulado_o_detallado_"].str.lower()
+    df["_acumulado_o_detallado_"] = df["_acumulado_o_detallado_"].astype(str).str.strip().str.lower()
     df = df[df["_acumulado_o_detallado_"] == "detallado"]
 
     df["_manejo_total_"] = pd.to_numeric(df["_manejo_total_"], errors="coerce").fillna(0)
