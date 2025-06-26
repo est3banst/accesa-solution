@@ -196,6 +196,51 @@ def add_summary_table_movil_611(doc, month_str, metrics):
             pass
      
 
+def add_summary_table_automatismos(doc, month_str, metrics):
+    """
+    Adds a 3-column automatismos table:
+    [Tarjeta Móvil Agencias - <month>] | Cantidad | Porcentaje
+    
+    """
+    doc.add_paragraph("") 
+    table = doc.add_table(rows=1, cols=3)
+    table.style = 'Table Grid'
+
+    header_cells = table.rows[0].cells
+    header_cells[0].text = f"Tarjeta Móvil Agencias - {month_str}"
+    header_cells[1].text = "Cantidad"
+    header_cells[2].text = "Porcentaje"
+
+    def fmt(key, dtype):
+        value = metrics.get(key)
+        if value is None:
+            return "N/A"
+        try:
+            return f"{float(value):.2f}%" if dtype == "percent" else f"{int(value):,}".replace(",", ".")
+        except Exception:
+            return "N/A"
+
+  
+    row = table.add_row().cells
+    row[0].text = "Total éxito"
+    row[1].text = fmt("total_correcto", "int")
+    row[2].text = fmt("porcentaje_correcto", "percent")
+
+    
+    row = table.add_row().cells
+    row[0].text = "Total errores"
+    row[1].text = fmt("total_error", "int")
+    row[2].text = fmt("porcentaje_error", "percent")
+
+   
+    row = table.add_row().cells
+    row[0].text = "Total:"
+    row[1].text = fmt("total_automatismos", "int")
+    row[2].text = "100.00%" 
+
+    doc.add_paragraph("") 
+
+
 def add_incidencias_bullet_section(doc, metrics):
     """
     Adds a heading and a bulleted list of incidencias, with their dates and descriptions.
@@ -230,13 +275,6 @@ def add_metrics_section(doc, section_title, metrics_dict, summary_text=None):
             "mensajes_salientes": "Mensajes salientes",
             "total_mensajes": "Total de mensajes",
             "promedio_mensajes_por_interaccion": "Prom. mensajes por interacción"
-        },
-        "automatismo_data": {
-            "total_correcto": "Total correcto",
-            "total_error": "Total error",
-            "total_automatismos": "Total automatismos",
-            "porcentaje_correcto": "% Correcto",
-            "porcentaje_error": "% Error"
         },
         "reclamos_data": {
             "total_tiempo_llamadas": "Tiempo total de llamadas",
@@ -289,6 +327,7 @@ def add_dataframe_table(doc, section_title, df, summary_text=None):
         for i, val in enumerate(row):
             cells[i].text = str(val)
             
+
             
 def build_report(month, metrics_by_section, summaries_by_section):
     doc = Document()
@@ -322,6 +361,9 @@ def build_report(month, metrics_by_section, summaries_by_section):
         add_incidencias_bullet_section(doc, incidencias)
 
     for section, metrics in metrics_by_section.items():
+        if "automatismo_data" in metrics_by_section:
+            add_summary_table_automatismos(
+            doc, convert_month_to_abbr(month), metrics_by_section["automatismo_data"])
         if section in {"habilidad_data", "skill_data", "congestion_data", "incidencias_data"}:
             continue 
         summary = summaries_by_section.get(section, "")
