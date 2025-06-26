@@ -5,6 +5,7 @@ from datetime import timedelta, datetime
 from vertexai.preview.language_models import TextGenerationModel
 import vertexai
 from docx import Document
+from docx.shared import Inches
 from flask_cors import CORS
 import os
 import logging
@@ -138,6 +139,19 @@ def add_general_summary(doc):
     )
     doc.add_paragraph("")
     
+def add_header_image(doc, image_path):
+    section = doc.sections[0]
+    header = section.header
+    paragraph = header.paragraphs[0]
+    run = paragraph.add_run()
+    run.add_picture(image_path, width=Inches(6.5))
+
+def add_footer_image(doc, image_path):
+    section = doc.sections[0]
+    footer = section.footer
+    paragraph = footer.paragraphs[0]
+    run = paragraph.add_run()
+    run.add_picture(image_path, width=Inches(6.5))    
     
 def add_summary_table_movil_611(doc, month_str, metrics):
     """
@@ -194,7 +208,27 @@ def add_summary_table_movil_611(doc, month_str, metrics):
             doc.add_paragraph("")
         except (ValueError, TypeError):
             pass
-     
+
+
+def add_summary_table_reclamos(doc, month_str, metrics):
+    """
+    Adds a custom summary table for Reclamos section.
+    """
+    doc.add_paragraph("")  
+    table = doc.add_table(rows=2, cols=4)
+    table.style = 'Table Grid'
+
+    hdr_cells = table.rows[0].cells
+    hdr_cells[0].text = "Mes"
+    hdr_cells[1].text = "Campaña"
+    hdr_cells[2].text = "Total llamadas"
+    hdr_cells[3].text = "Tiempo total"
+
+    val_cells = table.rows[1].cells
+    val_cells[0].text = month_str
+    val_cells[1].text = "Reclamos_611"
+    val_cells[2].text = str(metrics.get("total_llamadas", "N/A"))
+    val_cells[3].text = str(metrics.get("total_tiempo_llamadas", "N/A"))     
 
 def add_summary_table_automatismos(doc, month_str, metrics):
     """
@@ -276,12 +310,7 @@ def add_metrics_section(doc, section_title, metrics_dict, summary_text=None):
             "total_mensajes": "Total de mensajes",
             "promedio_mensajes_por_interaccion": "Prom. mensajes por interacción"
         },
-        "reclamos_data": {
-            "total_tiempo_llamadas": "Tiempo total de llamadas",
-            "total_llamadas": "Total llamadas",
-            "nombre_de_cola": "Colas involucradas",
-            "nombre_de_codigo_de_conclusion": "Códigos de conclusión"
-        },
+    
         "incidencias_data": None 
     }
 
@@ -333,6 +362,9 @@ def build_report(month, metrics_by_section, summaries_by_section):
     doc = Document()
     add_report_header(doc, month)
     add_general_summary(doc)
+    
+    add_header_image(doc, "assets/accesa-header-doc.png")
+    add_footer_image(doc, "assets/accesa-footer-doc.png")
 
     doc.add_heading("Indicadores de Gestión de las Llamadas", level=1)
 
@@ -369,6 +401,10 @@ def build_report(month, metrics_by_section, summaries_by_section):
         add_summary_table_automatismos(
             doc, convert_month_to_abbr(month), metrics_by_section["automatismo_data"]
         )
+    if "reclamos_data" in metrics_by_section:
+        add_summary_table_reclamos(
+        doc, convert_month_to_abbr(month), metrics_by_section["reclamos_data"]
+    )
 
     filename = f"reporte_{month}.docx"
     doc.save(filename)
@@ -715,8 +751,8 @@ def calc_roaming(df):
     
 
 def calc_automatismo(df):
-    total_correcto = df["total_correcto"].sum()
-    total_error = df["total_error"].sum()
+    total_correcto = df["total_correcto"].sum() - df["total_correcto"][-1]
+    total_error = df["total_error"].sum() - df["total_error"][-1]
 
     porcentaje_correcto = ((total_correcto * 100 )/ (total_correcto + total_error)) if (total_correcto + total_error) > 0 else 0
     porcentaje_error = ((total_error * 100) / (total_correcto + total_error)) if (total_correcto + total_error) > 0 else 0
