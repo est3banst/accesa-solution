@@ -64,6 +64,13 @@ def fetch_monthly_automatismo(table_name):
     """
     return bq.query(query).to_dataframe()
 
+def fetch_monthly_seisonce(table_name):
+    bq = bigquery.Client()
+    query = f"""
+        SELECT * FROM `accesa-equipo3.accesa_dataset.{table_name}`
+    """
+    return bq.query(query).to_dataframe()
+
 def fetch_monthly_congestion(table_name):
     bq = bigquery.Client()
     query = f"""
@@ -239,6 +246,46 @@ def add_summary_table_reclamos(doc, month_str, metrics):
     val_cells[2].text = str(metrics.get("total_llamadas", "N/A"))
     val_cells[3].text = str(metrics.get("total_tiempo_llamadas", "N/A"))     
 
+
+def add_summary_table_seisonce(doc, metrics):
+    """
+    Agrega un título, párrafo descriptivo, y tabla de motivos válidos para 611.
+    """
+    doc.add_paragraph("") 
+    doc.add_paragraph("Motivos de los contactos", style="Heading 2")
+
+    total_motivos_validos = metrics.get("total_motivos_validos", 0)
+    porcentaje_valido = metrics.get("porcentaje_valido", 0)
+
+    p = doc.add_paragraph()
+    
+    p.add_run("Durante el mes se registraron ")
+    run_motivos = p.add_run(f"{total_motivos_validos:,}")
+    run_motivos.bold = True
+    p.add_run(" motivos, lo que corresponde al ")
+    
+    run_porcentaje = p.add_run(f"{porcentaje_valido:.2f}%")
+    run_porcentaje.bold = True
+    p.add_run(" de las llamadas atendidas.")
+    
+    table = doc.add_table(rows=1, cols=2)
+    table.style = 'Table Grid'
+
+    header_cells = table.rows[0].cells
+    header_cells[0].text = "Motivo"
+    header_cells[1].text = "Cantidad"
+
+    motivos = metrics.get("motivos", [])
+    cantidades = metrics.get("cantidades", [])
+
+    for motivo, cantidad in zip(motivos, cantidades):
+        row_cells = table.add_row().cells
+        row_cells[0].text = motivo.capitalize()
+        row_cells[1].text = str(int(cantidad))
+
+    doc.add_paragraph("")  
+
+
 def add_summary_table_automatismos(doc, month_str, metrics):
     """
     Adds a 3-column automatismos table:
@@ -301,49 +348,8 @@ def add_incidencias_bullet_section(doc, metrics):
         doc.add_paragraph(item, style="List Bullet")
     doc.add_paragraph("")
 
-
-def add_metrics_section(doc, section_title, metrics_dict, summary_text=None):
-    """
-    Adds a custom table per section using human-readable labels for each metric.
-    """
-    doc.add_heading(section_title.replace("_", " ").title(), level=1)
-
-    if summary_text:
-        doc.add_paragraph(summary_text)
-
-    custom_labels = {
-        "roaming_data": {
-            "mensajes_entrantes": "Mensajes entrantes",
-            "mensajes_salientes": "Mensajes salientes",
-            "total_mensajes": "Total de mensajes",
-            "promedio_mensajes_por_interaccion": "Prom. mensajes por interacción"
-        },
-    
-        "incidencias_data": None 
-    }
-
-    label_map = custom_labels.get(section_title, {})
-
-    if not label_map:
-    
-        logger.warning(f"No custom label mapping found for section: {section_title}")
-        return
-
-    table = doc.add_table(rows=1, cols=2)
-    table.style = 'Table Grid'
-
-    for key, value in metrics_dict.items():
-        if key not in label_map:
-            continue  
-
-        label = label_map[key]
-        row_cells = table.add_row().cells
-        row_cells[0].text = label
-        row_cells[1].text = (
-            ", ".join(value) if isinstance(value, list) else str(value)
-        )
             
-def build_report(month, metrics_by_section, summaries_by_section):
+def build_report(month, metrics_by_section):
     doc = Document()
         
     add_header_image(doc, "assets/accesa-header-doc.png")
@@ -396,9 +402,9 @@ def build_report(month, metrics_by_section, summaries_by_section):
     )
     
     if "roaming_data" in metrics_by_section:
-        doc.add_paragraph().add_run("Asistencia por Roaming vía WhatsApp (092611611 opción 7)").bold = True
         doc.add_paragraph("")
-
+        doc.add_paragraph().add_run("Asistencia por Roaming vía WhatsApp (092611611 opción 7)").bold = True
+        
         roaming_metrics = metrics_by_section["roaming_data"]
 
         table = doc.add_table(rows=5, cols=2) 
@@ -422,6 +428,10 @@ def build_report(month, metrics_by_section, summaries_by_section):
             value = roaming_metrics.get(key)
             row_cells[1].text = str(value if value is not None else "N/A")
 
+    if "611_data" in metrics_by_section:
+        add_summary_table_seisonce(
+        doc, convert_month_to_abbr(month), metrics_by_section["611_data"]
+    )
 
       
     if "congestion_data" in metrics_by_section:
@@ -438,7 +448,7 @@ def build_report(month, metrics_by_section, summaries_by_section):
 
         doc.add_paragraph(f"La congestión del mes fue de: {congestion_value}")
         doc.add_paragraph(
-        f"Durante el mes el tiempo de operación promedio fue de {promedio_operacion} y el TRSAC fue de {trsac}"
+        f"Durante el mes el tiempo de operación promedio fue de {promedio_operacion} segundos y el TRSAC fue de {trsac} segundos"
         )
    
     if "automatismo_data" in metrics_by_section:
@@ -452,6 +462,7 @@ def build_report(month, metrics_by_section, summaries_by_section):
         add_summary_table_automatismos(
         doc, convert_month_to_abbr(month), metrics_by_section["automatismo_data"]
         )
+        doc.add_paragraph("Las horas incurridas en los automatismos no se computan como horas de operación mensual.")
 
     filename = f"reporte_{month}.docx"
     doc.save(filename)
@@ -546,6 +557,7 @@ def generate_report():
     handler_map = {
     "roaming_data" : (fetch_monthly_roaming, calc_roaming),
     "habilidad_data": (fetch_monthly_habilidad, calc_habilidad),
+    "611_data": (fetch_monthly_seisonce, calc_seisonce),
     "skill_data": (fetch_monthly_skill, calc_skill),
     "reclamos_data":(fetch_monthly_reclamos, calc_reclamos),
     "automatismo_data": (fetch_monthly_automatismo, calc_automatismo),
@@ -780,6 +792,21 @@ def calc_congestion(df):
     
     return {
         "congestion_6611": float(df_seis_uno)
+    }
+
+def calc_seisonce(df):
+    df["acumulado_o_detallado"] = df["acumulado_o_detallado"].astype(str).str.strip().str.lower()
+
+    df_acumulado = df[df["acumulado_o_detallado"] == "acumulado"]
+
+    df_acumulado["manejo"] = pd.to_numeric(df_acumulado["manejo"], errors="coerce").fillna(0)
+
+    motivos = df_acumulado["nombre_de_codigo_de_conclusion"].astype(str).tolist()
+    cantidades = df_acumulado["manejo"].tolist()
+
+    return {
+        "motivos": motivos,
+        "cantidades": cantidades
     }
 
 
