@@ -476,6 +476,7 @@ def build_report(month, metrics_by_section):
     if "reclamos_data" in metrics_by_section:
         add_summary_table_reclamos(
         doc, convert_month_to_abbr(month), metrics_by_section["reclamos_data"])
+        doc.add_paragraph("")
         add_reclamos_motivos_table(doc, metrics_by_section["reclamos_data"])
         doc.add_paragraph("")
     
