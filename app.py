@@ -456,7 +456,7 @@ def build_report(month, metrics_by_section):
         p.add_run("Automatismos").bold = True
 
         doc.add_paragraph(
-            "El uso de automatismos libera recursos para la atención de otras consultas más complejas."
+            "El uso de automatismos libera recursos para la atención de otras consultas más complejas. "
             "Actualmente está operativa una automatización permanente para el servicio brindado a Móvil Antel."
         )
         add_summary_table_automatismos(
@@ -791,28 +791,37 @@ def calc_congestion(df):
     return {
         "congestion_6611": float(df_seis_uno)
     }
-
 def calc_seisonce(df):
     df["acumulado_o_detallado"] = df["acumulado_o_detallado"].astype(str).str.strip().str.lower()
 
     df_acumulado = df[df["acumulado_o_detallado"] == "acumulado"]
-
     df_acumulado["manejo"] = pd.to_numeric(df_acumulado["manejo"], errors="coerce").fillna(0)
 
-    motivos = df_acumulado["nombre_de_codigo_de_conclusion"].astype(str).tolist()
-    cantidades = df_acumulado["manejo"].tolist()
+    excluded = {"inin-wrap-up-delete", "inin-wrap-up-timeout", "default wrap-up code"}
+
+    df_validos = df_acumulado[~df_acumulado["nombre_de_codigo_de_conclusion"].str.lower().isin(excluded)]
+
+    total_motivos_validos = df_validos["manejo"].sum()
+    total_motivos = df_acumulado["manejo"].sum()
+
+    porcentaje_valido = (total_motivos_validos / total_motivos * 100) if total_motivos else 0
+
+    motivos = df_validos["nombre_de_codigo_de_conclusion"].astype(str).tolist()
+    cantidades = df_validos["manejo"].tolist()
 
     return {
+        "total_motivos_validos": int(total_motivos_validos),
+        "porcentaje_valido": round(porcentaje_valido, 2),
         "motivos": motivos,
         "cantidades": cantidades
     }
 
 
 def calc_roaming(df):
-    mensajes_entrantes = df["cantidad_de_mensajes_entrantes"]
-    mensajes_salientes = df["cantidad_de_mensajes_salientes"]
+    mensajes_entrantes = df["cantidad_de_mensajes_entrantes"].iloc(0)
+    mensajes_salientes = df["cantidad_de_mensajes_salientes"].iloc(0)
     total_mensajes = mensajes_entrantes + mensajes_salientes
-    promedio_mensajes_por_interaccion = df["promedio_de_mensajes_por_interaccion"]
+    promedio_mensajes_por_interaccion = df["promedio_de_mensajes_por_interaccion"].iloc(0)
 
     return {
         "mensajes_entrantes": mensajes_entrantes,
