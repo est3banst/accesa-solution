@@ -865,7 +865,8 @@ def calc_incidencias(df):
         "fecha_incidente" : fecha_incidente,
         "descripcion_incidente" : descripcion_incidente
     }
-
+    
+    
 def calc_reclamos(df):
     df["_acumulado_o_detallado_"] = (
         df["_acumulado_o_detallado_"]
@@ -875,20 +876,38 @@ def calc_reclamos(df):
         .str.lower()
     )
 
-    logger.info("Unique values in _acumulado_o_detallado_ before filtering: %s", df["_acumulado_o_detallado_"].unique())
+    logger.info(
+        "Unique values in _acumulado_o_detallado_ before filtering: %s",
+        df["_acumulado_o_detallado_"].unique(),
+    )
     logger.info("DF size before filtering: %d", len(df))
 
     df = df[df["_acumulado_o_detallado_"] == "detallado"]
-
     logger.info("DF size after filtering: %d", len(df))
 
+    df["_manejo_total_"] = (
+        df["_manejo_total_"]
+        .astype(str)
+        .str.strip()
+        .str.strip('"')
+    )
     df["_manejo_total_"] = pd.to_numeric(df["_manejo_total_"], errors="coerce").fillna(0)
+
+    df["_manejo_"] = (
+        df["_manejo_"]
+        .astype(str)
+        .str.strip()
+        .str.strip('"')
+    )
     df["_manejo_"] = pd.to_numeric(df["_manejo_"], errors="coerce").fillna(0)
 
     total_tiempo_llamadas = df["_manejo_total_"].sum()
     total_llamadas = df["_manejo_"].sum()
+
     nombre_de_cola = df["_nombre_de_cola_"].dropna().astype(str).to_list()
     nombre_de_codigo_de_conclusion = df["_nombre_de_codigo_de_conclusion_"].dropna().astype(str).to_list()
+    logger.info("Total manejo: %s", total_llamadas)
+    logger.info("Total manejo total (ms): %s", total_tiempo_llamadas)
 
     return {
         "total_tiempo_llamadas": ms_to_hms(total_tiempo_llamadas),
@@ -896,7 +915,6 @@ def calc_reclamos(df):
         "nombre_de_cola": nombre_de_cola,
         "nombre_de_codigo_de_conclusion": nombre_de_codigo_de_conclusion,
     }
-
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
