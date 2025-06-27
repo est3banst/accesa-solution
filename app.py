@@ -943,10 +943,10 @@ def calc_reclamos(df):
         errors="coerce"
     ).fillna(0)
     excluded_codes = {"inin-wrap-up-timeout", "inin-wrap-up-delete", "default wrap-up code"}
-    motivo_manejo = df[~df["_nombre_de_codigo_de_conclusion_"].str.lower().isin(excluded_codes)]
+    motivo_manejo = df[~df["nombre_de_codigo_de_conclusion"].str.lower().isin(excluded_codes)]
 
     motivo_counts = Counter()
-    for motivo, cantidad in zip(motivo_manejo["_nombre_de_codigo_de_conclusion_"], motivo_manejo["_manejo_"]):
+    for motivo, cantidad in zip(motivo_manejo["nombre_de_codigo_de_conclusion"], motivo_manejo["_manejo_"]):
         motivo_counts[motivo.strip()] += cantidad
 
     total_tiempo_llamadas = df["manejo_total"].sum()
