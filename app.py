@@ -7,6 +7,7 @@ import vertexai
 from docx import Document
 from docx.shared import Inches
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+from docx.enum.table import WD_TABLE_ALIGNMENT
 from flask_cors import CORS
 import os
 import logging
@@ -178,6 +179,7 @@ def add_summary_table_movil_611(doc, month_str, metrics):
     doc.add_paragraph("")
     table = doc.add_table(rows=1, cols=2)
     table.style = 'Table Grid'
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
 
     hdr_cells = table.rows[0].cells
     p0 = hdr_cells[0].paragraphs[0]
@@ -292,6 +294,7 @@ def add_reclamos_motivos_table(doc, metrics):
     
     table = doc.add_table(rows=1, cols=2)
     table.style = "Table Grid"
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
 
     header_cells = table.rows[0].cells
 
@@ -325,7 +328,7 @@ def add_reclamos_motivos_table(doc, metrics):
 
 def add_summary_table_seisonce(doc, metrics):
     """
-    Agrega un título, párrafo descriptivo, y tabla de motivos válidos para 611.
+    Agrega un título, párrafo descriptivo, y tabla de motivos válidos para 611 ordenada descendente.
     """
     doc.add_paragraph("") 
     doc.add_paragraph("Motivos de los contactos", style="Heading 2")
@@ -334,32 +337,37 @@ def add_summary_table_seisonce(doc, metrics):
     porcentaje_valido = metrics.get("porcentaje_valido", 0)
 
     p = doc.add_paragraph()
-    
     p.add_run("Durante el mes se registraron ")
     run_motivos = p.add_run(f"{total_motivos_validos:,}")
     run_motivos.bold = True
     p.add_run(" motivos, lo que corresponde al ")
-    
     run_porcentaje = p.add_run(f"{porcentaje_valido:.2f}%")
     run_porcentaje.bold = True
     p.add_run(" de las llamadas atendidas.")
-    
+
     table = doc.add_table(rows=1, cols=2)
     table.style = 'Table Grid'
 
     header_cells = table.rows[0].cells
-    header_cells[0].text = "Motivo"
-    header_cells[1].text = "Cantidad"
+    for i, header_text in enumerate(["Motivo", "Cantidad"]):
+        header_cells[i].text = header_text
+        for paragraph in header_cells[i].paragraphs:
+            for run in paragraph.runs:
+                run.bold = True
 
     motivos = metrics.get("motivos", [])
     cantidades = metrics.get("cantidades", [])
 
-    for motivo, cantidad in zip(motivos, cantidades):
+    motivo_cantidad_pairs = list(zip(motivos, cantidades))
+    motivo_cantidad_pairs.sort(key=lambda x: x[1], reverse=True)
+
+    for motivo, cantidad in motivo_cantidad_pairs:
         row_cells = table.add_row().cells
         row_cells[0].text = motivo.capitalize()
-        row_cells[1].text = str(int(cantidad))
+        row_cells[1].text = f"{int(cantidad):,}".replace(",", ".")
 
-    doc.add_paragraph("")  
+    doc.add_paragraph("")
+ 
 
 
 def add_summary_table_automatismos(doc, month_str, metrics):
