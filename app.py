@@ -506,7 +506,7 @@ def build_report(month, metrics_by_section):
         )
         doc.add_paragraph("Las horas incurridas en los automatismos no se computan como horas de operación mensual.")
 
-    filename = f"reporte_{month}.docx"
+    filename = f"Informe Móvil_{month}.docx"
     doc.save(filename)
     return filename
 
