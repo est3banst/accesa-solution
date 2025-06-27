@@ -797,7 +797,7 @@ def calc_seisonce(df):
     df_acumulado = df[df["acumulado_o_detallado"] == "acumulado"]
     df_acumulado["manejo"] = pd.to_numeric(df_acumulado["manejo"], errors="coerce").fillna(0)
 
-    excluded = {"inin-wrap-up-delete", "inin-wrap-up-timeout", "default wrap-up code"}
+    excluded = {"inin-wrap-up-deleted", "inin-wrap-up-timeout", "default wrap-up code"}
 
     df_validos = df_acumulado[~df_acumulado["nombre_de_codigo_de_conclusion"].str.lower().isin(excluded)]
 
@@ -852,7 +852,10 @@ def calc_automatismo(df):
 
 def ms_to_hms(ms):
     seconds = int(ms / 1000)
-    return str(timedelta(seconds=seconds))
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    seconds = seconds % 60
+    return f"{hours:02}:{minutes:02}:{seconds:02}"
 
 def calc_incidencias(df):
     df["responsabilidad"] = df["responsabilidad"].str.lower()
@@ -868,6 +871,7 @@ def calc_incidencias(df):
     
     
 def calc_reclamos(df):
+    # Normalize and filter the 'acumulado_o_detallado' column
     df["_acumulado_o_detallado_"] = (
         df["_acumulado_o_detallado_"]
         .astype(str)
@@ -885,29 +889,25 @@ def calc_reclamos(df):
     df = df[df["_acumulado_o_detallado_"] == "detallado"]
     logger.info("DF size after filtering: %d", len(df))
 
-    df["_manejo_total_"] = (
-        df["_manejo_total_"]
-        .astype(str)
-        .str.strip()
-        .str.strip('"')
-    )
-    df["_manejo_total_"] = pd.to_numeric(df["_manejo_total_"], errors="coerce").fillna(0)
+    # Clean up numeric columns (strip quotes, convert to number)
+    df["_manejo_total_"] = pd.to_numeric(
+        df["_manejo_total_"].astype(str).str.strip().str.strip('"'),
+        errors="coerce"
+    ).fillna(0)
 
-    df["_manejo_"] = (
-        df["_manejo_"]
-        .astype(str)
-        .str.strip()
-        .str.strip('"')
-    )
-    df["_manejo_"] = pd.to_numeric(df["_manejo_"], errors="coerce").fillna(0)
+    df["_manejo_"] = pd.to_numeric(
+        df["_manejo_"].astype(str).str.strip().str.strip('"'),
+        errors="coerce"
+    ).fillna(0)
 
     total_tiempo_llamadas = df["_manejo_total_"].sum()
     total_llamadas = df["_manejo_"].sum()
 
-    nombre_de_cola = df["_nombre_de_cola_"].dropna().astype(str).to_list()
-    nombre_de_codigo_de_conclusion = df["_nombre_de_codigo_de_conclusion_"].dropna().astype(str).to_list()
     logger.info("Total manejo: %s", total_llamadas)
     logger.info("Total manejo total (ms): %s", total_tiempo_llamadas)
+
+    nombre_de_cola = df["_nombre_de_cola_"].dropna().astype(str).to_list()
+    nombre_de_codigo_de_conclusion = df["_nombre_de_codigo_de_conclusion_"].dropna().astype(str).to_list()
 
     return {
         "total_tiempo_llamadas": ms_to_hms(total_tiempo_llamadas),
@@ -915,6 +915,7 @@ def calc_reclamos(df):
         "nombre_de_cola": nombre_de_cola,
         "nombre_de_codigo_de_conclusion": nombre_de_codigo_de_conclusion,
     }
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
