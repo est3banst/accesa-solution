@@ -324,7 +324,7 @@ def add_summary_table_automatismos(doc, month_str, metrics):
 
    
     row = table.add_row().cells
-    row[0].text = "Total:"
+    row[0].text = "Total"
     row[1].text = fmt("total_automatismos", "int")
     row[2].text = "100.00%" 
 
@@ -871,7 +871,7 @@ def calc_incidencias(df):
     
     
 def calc_reclamos(df):
-    # Normalize and filter the 'acumulado_o_detallado' column
+    
     df["_acumulado_o_detallado_"] = (
         df["_acumulado_o_detallado_"]
         .astype(str)
@@ -889,7 +889,6 @@ def calc_reclamos(df):
     df = df[df["_acumulado_o_detallado_"] == "detallado"]
     logger.info("DF size after filtering: %d", len(df))
 
-    # Clean up numeric columns (strip quotes, convert to number)
     df["_manejo_total_"] = pd.to_numeric(
         df["_manejo_total_"].astype(str).str.strip().str.strip('"'),
         errors="coerce"
