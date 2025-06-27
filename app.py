@@ -11,6 +11,7 @@ import os
 import logging
 import traceback
 import math
+from collections import Counter
 from google.cloud import bigquery
 import pandas as pd
 import re
@@ -217,6 +218,7 @@ def add_summary_table_movil_611(doc, month_str, metrics):
     if promedio is not None:
         try:
             promedio_val = int(promedio)
+            doc.add_paragraph("")
             p = doc.add_paragraph()
     
             p.add_run("El promedio de llamadas diarias ingresado al servicio en el mes fue de ")
@@ -422,7 +424,8 @@ def build_report(month, metrics_by_section):
     }
 
     add_summary_table_movil_611(doc, convert_month_to_abbr(month), combined_611_metrics)
-
+    
+    doc.add_paragraph("")
     if incidencias:
         p = doc.add_paragraph()
         p.add_run("Incidencias que afectaron el servicio móvil en el mes:").bold = True
@@ -939,6 +942,12 @@ def calc_reclamos(df):
         df["manejo"].astype(str).str.strip().str.strip('"'),
         errors="coerce"
     ).fillna(0)
+    excluded_codes = {"inin-wrap-up-timeout", "inin-wrap-up-delete", "default wrap-up code"}
+    motivo_manejo = df[~df["_nombre_de_codigo_de_conclusion_"].str.lower().isin(excluded_codes)]
+
+    motivo_counts = Counter()
+    for motivo, cantidad in zip(motivo_manejo["_nombre_de_codigo_de_conclusion_"], motivo_manejo["_manejo_"]):
+        motivo_counts[motivo.strip()] += cantidad
 
     total_tiempo_llamadas = df["manejo_total"].sum()
     total_llamadas = df["manejo"].sum()
@@ -953,6 +962,7 @@ def calc_reclamos(df):
         "total_tiempo_llamadas": ms_to_hms(total_tiempo_llamadas),
         "total_llamadas": int(total_llamadas),
         "nombre_de_cola": nombre_de_cola,
+        "motivo_manejo_map": dict(motivo_counts),
         "nombre_de_codigo_de_conclusion": nombre_de_codigo_de_conclusion,
     }
 
