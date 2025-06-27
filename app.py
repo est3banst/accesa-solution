@@ -946,7 +946,7 @@ def calc_reclamos(df):
     motivo_manejo = df[~df["nombre_de_codigo_de_conclusion"].str.lower().isin(excluded_codes)]
 
     motivo_counts = Counter()
-    for motivo, cantidad in zip(motivo_manejo["nombre_de_codigo_de_conclusion"], motivo_manejo["_manejo_"]):
+    for motivo, cantidad in zip(motivo_manejo["nombre_de_codigo_de_conclusion"], motivo_manejo["manejo"]):
         motivo_counts[motivo.strip()] += cantidad
 
     total_tiempo_llamadas = df["manejo_total"].sum()
