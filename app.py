@@ -659,7 +659,7 @@ def process_file(file_name):
             if df.shape[1] == 1 and isinstance(df.iloc[0, 0], str) and df.iloc[0, 0].count(',') > 1:
                 logger.warning("Improperly formatted Excel file with comma-delimited content.")
 
-                split_df = df.iloc[:, 0].apply(lambda x: pd.Series(str(x).split(',')))
+                split_df = df.iloc[:, 0].apply(lambda x: pd.Series(str(x).split('","')))
 
                 split_df.columns = split_df.iloc[0].fillna("col_unnamed")
                 df = split_df.iloc[1:].reset_index(drop=True)
