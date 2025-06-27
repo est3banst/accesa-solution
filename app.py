@@ -217,10 +217,12 @@ def add_summary_table_movil_611(doc, month_str, metrics):
     if promedio is not None:
         try:
             promedio_val = int(promedio)
-            doc.add_paragraph("")
-            doc.add_paragraph(
-                f"El promedio de llamadas diarias ingresado al servicio en el mes fue de {promedio_val:,}"
-            )
+            p = doc.add_paragraph()
+    
+            p.add_run("El promedio de llamadas diarias ingresado al servicio en el mes fue de ")
+            run_promedio = p.add_run(f"{promedio_val}")
+            run_promedio.bold = True
+            
             doc.add_paragraph("")
         except (ValueError, TypeError):
             pass
@@ -245,6 +247,45 @@ def add_summary_table_reclamos(doc, month_str, metrics):
     val_cells[1].text = "Reclamos_611"
     val_cells[2].text = str(metrics.get("total_llamadas", "N/A"))
     val_cells[3].text = str(metrics.get("total_tiempo_llamadas", "N/A"))     
+
+def add_reclamos_motivos_table(doc, metrics):
+    motivo_map = metrics.get("motivo_manejo_map", {})
+
+    motivo_map = {
+        motivo: cantidad
+        for motivo, cantidad in motivo_map.items()
+        if motivo.lower().strip() != "inin-wrap-up-timeout"
+    }
+
+    if not motivo_map:
+        return
+
+    sorted_motivos = sorted(motivo_map.items(), key=lambda x: x[1], reverse=True)
+
+    doc.add_paragraph().add_run("Motivos IZI 611").bold = True
+
+    table = doc.add_table(rows=1, cols=2)
+    table.style = "Table Grid"
+
+    header_cells = table.rows[0].cells
+    header_cells[0].text = "Motivos IZI 611"
+    header_cells[1].text = "Cantidad"
+
+    total_count = 0
+
+    for motivo, cantidad in sorted_motivos:
+        row_cells = table.add_row().cells
+        row_cells[0].text = motivo
+        row_cells[1].text = str(int(cantidad))
+        total_count += cantidad
+
+    total_row = table.add_row().cells
+    total_row[0].text = "Total"
+    total_row[0].paragraphs[0].runs[0].bold = True
+    total_row[1].text = f"{int(total_count):,}".replace(",", ".")
+    total_row[1].paragraphs[0].runs[0].bold = True
+
+    doc.add_paragraph("")
 
 
 def add_summary_table_seisonce(doc, metrics):
@@ -398,13 +439,14 @@ def build_report(month, metrics_by_section):
    
     if "reclamos_data" in metrics_by_section:
         add_summary_table_reclamos(
-        doc, convert_month_to_abbr(month), metrics_by_section["reclamos_data"]
-    )
+        doc, convert_month_to_abbr(month), metrics_by_section["reclamos_data"])
+        add_reclamos_motivos_table(doc, metrics_by_section["reclamos_data"])
+        doc.add_paragraph("")
     
     if "roaming_data" in metrics_by_section:
         doc.add_paragraph("")
         doc.add_paragraph().add_run("Asistencia por Roaming vía WhatsApp (092611611 opción 7)").bold = True
-        
+        doc.add_paragraph("")
         roaming_metrics = metrics_by_section["roaming_data"]
 
         table = doc.add_table(rows=5, cols=2) 
