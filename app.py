@@ -654,7 +654,7 @@ def process_file(file_name):
         if file_ext == "csv":
             df = pd.read_csv(io.BytesIO(file_data))
         elif file_ext in ["xls", "xlsx"]:
-            df = pd.read_excel(io.BytesIO(file_data), header=None)
+            df = pd.read_excel(io.BytesIO(file_data), header=None, dtype=str)
             logger.info(f"Dataframe actual: {df.shape}")
             if df.shape[1] == 1 and isinstance(df.iloc[0, 0], str) and df.iloc[0, 0].count(',') > 1:
                 logger.warning("Improperly formatted Excel file with comma-delimited content.")
