@@ -871,8 +871,8 @@ def calc_incidencias(df):
     
 def calc_reclamos(df):
     
-    df["_acumulado_o_detallado_"] = (
-        df["_acumulado_o_detallado_"]
+    df["acumulado_o_detallado"] = (
+        df["acumulado_o_detallado"]
         .astype(str)
         .str.strip()
         .str.strip('"')
@@ -880,32 +880,32 @@ def calc_reclamos(df):
     )
 
     logger.info(
-        "Unique values in _acumulado_o_detallado_ before filtering: %s",
-        df["_acumulado_o_detallado_"].unique(),
+        "Unique values in acumulado_o_detallado before filtering: %s",
+        df["acumulado_o_detallado"].unique(),
     )
     logger.info("DF size before filtering: %d", len(df))
 
-    df = df[df["_acumulado_o_detallado_"] == "detallado"]
+    df = df[df["acumulado_o_detallado"] == "detallado"]
     logger.info("DF size after filtering: %d", len(df))
 
-    df["_manejo_total_"] = pd.to_numeric(
-        df["_manejo_total_"].astype(str).str.strip().str.strip('"'),
+    df["manejo_total"] = pd.to_numeric(
+        df["manejo_total"].astype(str).str.strip().str.strip('"'),
         errors="coerce"
     ).fillna(0)
 
-    df["_manejo_"] = pd.to_numeric(
-        df["_manejo_"].astype(str).str.strip().str.strip('"'),
+    df["manejo"] = pd.to_numeric(
+        df["manejo"].astype(str).str.strip().str.strip('"'),
         errors="coerce"
     ).fillna(0)
 
-    total_tiempo_llamadas = df["_manejo_total_"].sum()
-    total_llamadas = df["_manejo_"].sum()
+    total_tiempo_llamadas = df["manejo_total"].sum()
+    total_llamadas = df["manejo"].sum()
 
     logger.info("Total manejo: %s", total_llamadas)
     logger.info("Total manejo total (ms): %s", total_tiempo_llamadas)
 
-    nombre_de_cola = df["_nombre_de_cola_"].dropna().astype(str).to_list()
-    nombre_de_codigo_de_conclusion = df["_nombre_de_codigo_de_conclusion_"].dropna().astype(str).to_list()
+    nombre_de_cola = df["nombre_de_cola"].dropna().astype(str).to_list()
+    nombre_de_codigo_de_conclusion = df["nombre_de_codigo_de_conclusion"].dropna().astype(str).to_list()
 
     return {
         "total_tiempo_llamadas": ms_to_hms(total_tiempo_llamadas),
