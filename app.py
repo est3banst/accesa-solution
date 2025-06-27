@@ -6,6 +6,7 @@ from vertexai.preview.language_models import TextGenerationModel
 import vertexai
 from docx import Document
 from docx.shared import Inches
+from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 from flask_cors import CORS
 import os
 import logging
@@ -179,8 +180,17 @@ def add_summary_table_movil_611(doc, month_str, metrics):
     table.style = 'Table Grid'
 
     hdr_cells = table.rows[0].cells
-    hdr_cells[0].text = "ANTEL - MÓVIL 611"
-    hdr_cells[1].text = month_str
+    p0 = hdr_cells[0].paragraphs[0]
+    p0.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    run0 = p0.add_run("ANTEL - MÓVIL 611")
+    run0.bold = True
+
+
+    p1 = hdr_cells[1].paragraphs[0]
+    p1.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    run1 = p1.add_run(f"{month_str}")
+    run1.bold = True
+    
 
     rows = [
         ("Llamadas al servicio", "llamadas_al_servicio", "int"),
@@ -239,10 +249,25 @@ def add_summary_table_reclamos(doc, month_str, metrics):
     table.style = 'Table Grid'
 
     hdr_cells = table.rows[0].cells
-    hdr_cells[0].text = "Mes"
-    hdr_cells[1].text = "Campaña"
-    hdr_cells[2].text = "Total llamadas"
-    hdr_cells[3].text = "Tiempo total"
+    p0 = hdr_cells[0].paragraphs[0]
+    p0.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    run0 = p0.add_run("Mes")
+    run0.bold = True
+    
+    p1 = hdr_cells[1].paragraphs[0]
+    p1.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    run1 = p1.add_run("Campaña")
+    run1.bold = True
+    
+    p2 = hdr_cells[2].paragraphs[0]
+    p2.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    run2 = p2.add_run("Total llamadas")
+    run2.bold = True
+    
+    p3 = hdr_cells[3].paragraphs[0]
+    p3.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    run3 = p3.add_run("Tiempo total")
+    run3.bold = True
 
     val_cells = table.rows[1].cells
     val_cells[0].text = month_str
@@ -264,14 +289,22 @@ def add_reclamos_motivos_table(doc, metrics):
 
     sorted_motivos = sorted(motivo_map.items(), key=lambda x: x[1], reverse=True)
 
-    doc.add_paragraph().add_run("Motivos IZI 611").bold = True
-
+    
     table = doc.add_table(rows=1, cols=2)
     table.style = "Table Grid"
 
     header_cells = table.rows[0].cells
-    header_cells[0].text = "Motivos IZI 611"
-    header_cells[1].text = "Cantidad"
+
+    p0 = header_cells[0].paragraphs[0]
+    p0.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    run0 = p0.add_run("Motivos IZI 611")
+    run0.bold = True
+
+
+    p1 = header_cells[1].paragraphs[0]
+    p1.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    run1 = p1.add_run("Cantidad")
+    run1.bold = True
 
     total_count = 0
 
@@ -862,10 +895,10 @@ def calc_seisonce(df):
 
 
 def calc_roaming(df):
-    mensajes_entrantes = df["cantidad_de_mensajes_entrantes"].iloc(0)
-    mensajes_salientes = df["cantidad_de_mensajes_salientes"].iloc(0)
+    mensajes_entrantes = df["cantidad_de_mensajes_entrantes"].iloc[0]
+    mensajes_salientes = df["cantidad_de_mensajes_salientes"].iloc[0]
     total_mensajes = mensajes_entrantes + mensajes_salientes
-    promedio_mensajes_por_interaccion = df["promedio_de_mensajes_por_interaccion"].iloc(0)
+    promedio_mensajes_por_interaccion = df["promedio_de_mensajes_por_interaccion"].iloc[0]
 
     return {
         "mensajes_entrantes": mensajes_entrantes,
