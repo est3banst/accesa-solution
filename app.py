@@ -58,6 +58,8 @@ def convert_month_to_abbr(month_str):
     }
     return f"{month_names.get(month, '---')}-{str(year)[2:]}"
 
+#QUERIES PARA OBTENER DATOS DE BIGQUERY
+
 def fetch_monthly_automatismo(table_name):
     bq = bigquery.Client()
     query = f"""
@@ -131,6 +133,8 @@ def fetch_monthly_roaming(table_name):
     """
     return bq.query(query).to_dataframe()
 
+####
+# AI TO IMPL -----
 def summarize_dataframe(df, context=""):
     model = TextGenerationModel.from_pretrained("text-bison@001")
     prompt = f"""
@@ -138,6 +142,10 @@ Actúa como un analista de datos senior. Resume los siguientes datos ({context})
  {df.describe(include='all').to_string()}
 """
     return model.predict(prompt=prompt, temperature=0.7, max_output_tokens=1024).text
+
+####
+
+#DOC REPORT GEN
 
 def add_report_header(doc, month):
     doc.add_heading("Informe Mensual de Gestión", 0)
@@ -556,6 +564,9 @@ def build_report(month, metrics_by_section):
     return filename
 
 
+#####
+
+# ENDPOINTS
 
 @app.route("/generate-signed-url", methods=["POST", "OPTIONS"])
 def get_signed_url():
@@ -711,6 +722,8 @@ def internal_error(error):
     logger.error(f"Internal server error: {error}")
     return jsonify({"error": "Internal server error"}), 500
 
+# CLEANUP FUNC 
+
 def clean_column_name(name):
     name = unicodedata.normalize('NFKD', name).encode('ASCII', 'ignore').decode('utf-8')
 
@@ -818,6 +831,8 @@ def process_file(file_name):
         logger.error(f"Error in process_upload: {str(e)}")
         logger.error(traceback.format_exc())
         raise
+
+#CALCS FROM DATAFRAMES
 
 def calc_habilidad(df):
     total_llamadas = df["ofrecidas"].sum()
